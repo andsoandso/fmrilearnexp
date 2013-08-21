@@ -11,7 +11,7 @@ Usage
     >>> exp("respXtime_rfx_mask",
             "/data/data2/meta_accumulate/fh/roinii",
             "/data/data2/meta_accumulate/fh/fidl",
-            "example_accuracy_test.txt"
+            "fm_motor_stat_accuracy_test.txt"
             True)
 """
 import os
