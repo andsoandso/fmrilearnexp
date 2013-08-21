@@ -236,7 +236,7 @@ if __name__ == "__main__":
     # A little PFA to simplify the run loop...
     named_exp = partial(exp,  
             table=ACCURACY_TABLE_NAME,
-            verbose=False)
+            verbose=True)
     
     # ----
     # And go!
