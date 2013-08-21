@@ -29,16 +29,18 @@ from sklearn.metrics import (classification_report, accuracy_score,
         precision_score, recall_score, f1_score)
 
 # fmrilean imports.
-from fmrilearn.load import load_roi
-from fmrilearn.save import save_accuracy_table
+from fmrilearn.load import load_nii
+from fmrilearn.save import (save_accuracy_table, reset_accuracy_table)
 from fmrilearn.preprocess.data import (remove_invariant_features, 
-        create_X_stats)
+        create_X_stats, smooth)
 from fmrilearn.preprocess.labels import (construct_targets, 
         construct_filter, filter_targets)
 from fmrilearn.info import (print_target_info, print_X_info, print_clf_info)
+from fmrilearn.classify import simpleCV
 
 # wheelerdata import
-from wheelerdata.fh import (get_roi_data_paths, get_motor_metadata_paths)
+from wheelerdata.load.fh import (get_roi_data_paths,
+        get_motor_metadata_paths)
 
 
 def exp(roi, table, verbose=True):
@@ -109,7 +111,7 @@ def exp(roi, table, verbose=True):
     
         # ----
         # Get the data, intial preprocessing
-        Xsp = load_roi(roipath, sparse=True)
+        Xsp = load_nii(roipath, sparse=True)
         Xsp = remove_invariant_features(Xsp, sparse=True)
         Xsp = Xsp[targets["trs"],:]
 
@@ -154,19 +156,19 @@ def exp(roi, table, verbose=True):
         clf = GradientBoostingClassifier(
                 n_estimators=100, learning_rate=1.0, 
                 max_depth=1, random_state=0)
-        print_clf_info(clf)
         
         # --
         if verbose:
             print("Classifying...")
+            print_clf_info(clf)
 
-        truths, predictions = simpleCV(table, Xstat, resps_stat, cv, clf)
+        truths, predictions = simpleCV(Xstat, resps_stat, cv, clf, verbose)
         
         # ----
         # Save the results
         i = 0
         for truth, prediction in zip(truths, predictions):
-            accuracy = accuracy_score(ytest, predictions)
+            accuracy = accuracy_score(truth, prediction)
             overall_accuracy.append(accuracy)
             
             save_accuracy_table(
@@ -176,11 +178,10 @@ def exp(roi, table, verbose=True):
         
             if verbose:
                 print("Processing the CV results...")
-                print("\tResults:")
-                print(classification_report(ytest, predictions, 
-                        target_names=sorted(np.unique(labels))))
-
                 print("\tFor CV {0}, accuracy was {1}".format(i, accuracy))
+                print("\tFull report:")
+                print(classification_report(truth, prediction, 
+                        target_names=sorted(np.unique(resps_stat))))
                 i += 1
     
     omean = np.array(overall_accuracy).mean()
@@ -235,7 +236,7 @@ if __name__ == "__main__":
     # A little PFA to simplify the run loop...
     named_exp = partial(exp,  
             table=ACCURACY_TABLE_NAME,
-            verbose=True)
+            verbose=False)
     
     # ----
     # And go!
