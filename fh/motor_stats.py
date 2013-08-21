@@ -6,7 +6,7 @@ Usage
     python ./motor_stats.py   ## Runs many ROIs (runtime is ~10 hours)
 
 * ipython:
-    >>> from fmrilearnexp.example import exp
+    >>> from fmrilearnexp.fh.motor_stats import exp
     >>> # Use the known good functional ROI....
     >>> exp("respXtime_rfx_mask",
             "/data/data2/meta_accumulate/fh/roinii",
@@ -160,6 +160,7 @@ def exp(roi, table, verbose=True):
         # --
         if verbose:
             print("Classifying...")
+            print_label_counts(resps)
             print_clf_info(clf)
 
         truths, predictions = simpleCV(Xstat, resps_stat, cv, clf, verbose)
