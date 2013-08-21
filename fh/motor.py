@@ -43,7 +43,7 @@ from fmrilearn.classify import simpleCV
 from wheelerdata.load.fh import (get_roi_data_paths,
         get_motor_metadata_paths)
 
-def exp(roi):
+def exp(roi, table, verbose):
     """
     An experimental function to classify a ROI from the 
     face/house data by motor response.
@@ -103,9 +103,7 @@ def exp(roi):
         
         # ----
         # Construct targets
-        targets = construct_targets(resps=resps, 
-                trial_index=trial_index,
-                trs=trs)
+        targets = construct_targets(resps=resps, trs=trs)
     
         # ----
         # Get the data, intial preprocessing
@@ -139,7 +137,7 @@ def exp(roi):
         # ----
         # --
         # CV setup
-        nrow, ncol = Xstat.shape
+        nrow, ncol = X.shape
         cv = KFold(nrow, n_folds=5, indices=True)
     
         # --
@@ -151,10 +149,11 @@ def exp(roi):
         # --
         if verbose:
             print("Classifying...")
-            print_label_counts(resps)
+            print_label_counts(targets["resps"])
             print_clf_info(clf)
 
-        truths, predictions = simpleCV(Xstat, resps_stat, cv, clf, verbose)
+        truths, predictions = simpleCV(X, targets["resps"], 
+                cv, clf, verbose)
     
         # ----
         # Save the results
@@ -173,15 +172,15 @@ def exp(roi):
                 print("\tFor CV {0}, accuracy was {1}".format(i, accuracy))
                 print("\tFull report:")
                 print(classification_report(truth, prediction, 
-                        target_names=sorted(np.unique(resps_stat))))
+                        target_names=sorted(np.unique(targets["resps"]))))
                 i += 1
 
     omean = np.array(overall_accuracy).mean()
     save_accuracy_table(table, [roi, roi, "overall"], omean)
     
-        if verbose:
-            print("****")
-            print("Overall accuracy for {1} was {0}".format(omean, roi))
+    if verbose:
+        print("****")
+        print("Overall accuracy for {1} was {0}".format(omean, roi))
         
 
 if __name__ == "__main__":
@@ -228,7 +227,7 @@ if __name__ == "__main__":
     # A little PFA to simplify the run loop...
     named_exp = partial(exp,  
             table=ACCURACY_TABLE_NAME,
-            verbose=False)
+            verbose=True)
     
     # ----
     # And go!
