@@ -35,7 +35,8 @@ from fmrilearn.preprocess.data import (remove_invariant_features,
         create_X_stats, smooth)
 from fmrilearn.preprocess.labels import (construct_targets, 
         construct_filter, filter_targets)
-from fmrilearn.info import (print_target_info, print_X_info, print_clf_info)
+from fmrilearn.info import (print_target_info, print_X_info, print_clf_info,
+        print_label_counts)
 from fmrilearn.classify import simpleCV
 
 # wheelerdata import
@@ -237,7 +238,7 @@ if __name__ == "__main__":
     # A little PFA to simplify the run loop...
     named_exp = partial(exp,  
             table=ACCURACY_TABLE_NAME,
-            verbose=False)
+            verbose=True)
     
     # ----
     # And go!

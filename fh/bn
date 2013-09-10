@@ -1,0 +1,128 @@
+"""Calculate average trials
+
+usage: python ./timecourse.py"""
+
+import sys, os
+
+import pandas as pd
+import numpy as np
+
+from fmrilearn.analysis import mean_trial, fir_trial
+from fmrilearn.preprocess.labels import (construct_targets, 
+        construct_filter, filter_targets)
+from fmrilearn.preprocess.data import remove_invariant_features
+from fmrilearn.load import load_nii
+
+# ----
+# Globals
+TR = 1.5
+WINDOW = 28
+
+def trial_estimates(roi, table):
+    roipaths = get_roi_data_paths(roi)
+    metapaths = get_motor_metadata_paths()
+
+    # ----
+    # Loop overs Ss data, preprocess, and classify
+    for roipath, metapath in zip(roipaths, metapaths):
+                    
+        _, roiname = os.path.split(roipath)
+        roiname = os.path.splitext(roiname)
+
+        # ----
+        # Load labels and construct targets
+        meta = pd.read_csv(metapath)    
+
+        resps = np.array(meta["resp"].tolist())
+        trial_index = np.array(meta("trialcount").tolist())
+        trs = np.array(meta["TR"].tolist())
+
+        targets = construct_targets(
+                resps=resps, 
+                trial_index=trial_index,
+                trs=trs)
+
+        # ----
+        # Get data, only keep labeled data, that which we have a TR for
+        X = remove_invariant_features(load_nii(
+                roipath, sparse=True)).todense()
+        X = X[targets["trs"],:]
+
+        # ----
+        # Filter for valid resp only
+        keepers = ["left", "right"]
+        keep_lr = construct_filter(targets["resps"], keepers, True)
+        targets = filter_targets(keep_lr, targets)
+        X = X[keep,:]
+
+        # ----
+        # Calc trial estimates
+        Xmean, ymean = mean_trial(
+                    X, 
+                    targets["resps"], 
+                    targets["trial_index"])
+        Xfir, yfir = fir_trial(
+                    X, 
+                    targets["resps"], 
+                    TR, WINDOW)
+        Xfir_colmeanfirst, _ = firtrial(
+                    X.mean(1).reshape((X.shape[0],1)), 
+                    targets["resps"], 
+                    TR, WINDOW)
+
+        # ----
+        # And save them by first creating an informative prefix/prefix
+        prefix = "{0}_{1}".format(roiname, "motor")
+
+        save_timecourse_table(table, meta, timecourses, concatenate=True)
+        df_mean = pd.DataFrame(Xmean)
+        df_mean['ymean'] = ymean
+        df_mean.to_csv('{0}_mean.csv'.format(prefix), sep=',')
+
+        df_fir = pd.DataFrame(Xfir)
+        df_fir['yfir'] = yfir
+        df_fir.to_csv('{0}_fir.csv'.format(prefix), sep=',')
+
+        df_fir_colmeanfirst = pd.DataFrame(Xfir_colmeanfirst)
+        df_fir_colmeanfirst['yfir'] = yfir
+        df_fir_colmeanfirst.to_csv(
+                '{0}_fir_colcolmeanfirst.csv'.format(prefix), sep=',')
+
+def _save_timecourse(X, meta
+
+if __name__ == "__main__":
+
+    #ROIS = ["respXtime_rfx_mask",
+    #        "left_ventrical",
+    #        "right_ventrical",
+    #        "left_putamen",
+    #        "right_putamen",
+    #        "left_caudate",
+    #        "right_caudate",
+    #        "sma",
+    #        "precentral",
+    #        "postcentral",
+    #        "parietal_superior",
+    #        "loc_superior",
+    #        "loc_iferior",
+    #        "mfg",
+    #        "sfg",
+    #        "insula",
+    #        "ifg_triangularis",
+    #        "ifg_opercularis",
+    #        "stempotal_anterior",
+    #        "stempotal_posterior",
+    #        "acc",
+    #        "pcc",
+    #        "precuneous",
+    #        "ofc",
+    #        "left_hippocampus",
+    #        "right_hippocampus",
+    #        "parahippo_anterior",
+    #        "parahippo_posterior"]
+
+    print("Test run")
+    ROIS = ["respXtime_rfx_mask",]
+
+    for roi in ROIS:
+        timecourse(roi, metapath)

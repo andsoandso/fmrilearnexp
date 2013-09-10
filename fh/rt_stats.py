@@ -3,15 +3,15 @@
 Usage
 -----
 * Command line:
-    python ./motor_stats.py   ## Runs many ROIs (runtime is ~10 hours)
+    python ./rt_stats.py   ## Runs many ROIs (runtime is ~10 hours)
 
 * ipython:
-    >>> from fmrilearnexp.fh.motor_stats import exp
+    >>> from fmrilearnexp.fh.rt_stats import exp
     >>> # Use the known good functional ROI....
     >>> exp("respXtime_rfx_mask",
             "/data/data2/meta_accumulate/fh/roinii",
             "/data/data2/meta_accumulate/fh/fidl",
-            "fm_motor_stat_accuracy_test.txt"
+            "fh_rt_stat_accuracy_test.txt"
             True)
 """
 import os
@@ -47,7 +47,7 @@ from wheelerdata.load.fh import (get_roi_data_paths,
 def exp(roi, table, verbose=True):
     """
     An experimental function to classify a ROI from the 
-    face/house data by motor response.
+    face/house data by rt response.
     
     Parameters
     ----------
@@ -73,8 +73,12 @@ def exp(roi, table, verbose=True):
     Details
     -------
         * Classes:
-            1. 'rt', i.e. reaction times - 'rt2'/'rt3'
-
+            1. 'rt', i.e. reaction times classed into 2 categories as,
+                "rt1" : "slow"
+                "rt2" : "slow"
+                "rt3" : "fast"
+                "rt4" : "fast"
+                
         * Preprocessing:
             1. remove_invariant_features, 
             2. smooth, 

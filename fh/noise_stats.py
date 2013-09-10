@@ -73,7 +73,10 @@ def exp(roi, table, verbose=True):
     Details
     -------
         * Classes:
-            1. 'noise', i.e. TODO
+            1. 'noise' into two classes, i.e.,
+                "65percent" : "low", "66percent" : "low",
+                "67percent" : "medium", "68percent" : "medium",
+                "69percent" : "high", "70percent" : "high"
 
         * Preprocessing:
             1. remove_invariant_features, 
