@@ -77,14 +77,20 @@ class DecomposeFH(object):
             # Name them,
             csnames = ["all", ] + sorted(np.unique(targets["y"]))
             
+            # Try to count components for the dataname
+            try:
+                dataname = join_by_underscore(False, roiname, 
+                        self.spacetime.decompr.n_components)
+            except AttributeError:
+                dataname = join_by_underscore(False, roiname)
+
             # and write.
             for Xc, csname in zip(Xcs, csnames):
                 save_tcdf(
                         name=join_by_underscore(True, table, csname), 
                         X=Xc, 
                         cond=csname,
-                        dataname=join_by_underscore(False, roiname, 
-                                self.spacetime.decompr.n_components),
+                        dataname=dataname,
                         index='auto',
                         header=header, 
                         mode=mode,
@@ -179,8 +185,9 @@ class Space(Spacetime):
     def __init__(self, decompr):
         super(Space, self).__init__(decompr)
 
+        self.mode = "eva"
 
-    def fit_transform(self, X, y, trial_index, window, mode="eva"):
+    def fit_transform(self, X, y, trial_index, window, norm=True):
         """Converts X into time-avearage trials and decomposes 
         that matrix, possibly several times depending on y.
 
@@ -194,8 +201,8 @@ class Space(Spacetime):
             Each unique entry should match a trial.
         window : int 
             Trial length
-        eva : str, 'eva' by default
-            Select the trial averaging method
+        norm : False
+            A dummy argument
 
         Return
         ------
@@ -204,21 +211,20 @@ class Space(Spacetime):
         csnames : 1D array
             The names of the components matrices
         """
-        
+
         Xtrials = []
         csnames = []
         unique_y = sorted(np.unique(y))
 
         # Time averaged trials become features
-        if mode == "eva":
-            Xtrial, feature_names = eva(X, y, trial_index, window)
-        elif mode == "fir":
+        if self.mode == "eva":
+            Xtrial, feature_names = eva(X, y, trial_index, window, norm=True)
+        elif self.mode == "fir":
             raise NotImplementedError("fir implementation needs work")
         else:
             raise ValueError("mode not understaood ('eva', 'fir')")
 
-        # Split by unique_y,
-        # put it all togther,
+        # Split by unique_y, put it all togther,
         Xtrials.append(Xtrial)
         for yi in unique_y:
             Xtrials.append(Xtrial[:, yi == feature_names])
@@ -231,6 +237,64 @@ class Space(Spacetime):
 
         return Xcs, csnames        
         
+
+class AverageTime(object):
+    """Average trials. Requires an average function with a 
+        signature like: 
+
+        avg(X, y, trial_index, window, norm=True)
+
+        That returns a Xtrial matrix shaped like 
+        (n_feature * n_cond, window) and an array of 
+        feature names. See fmrilearn.analysis.eva for 
+        an example.
+    """
+
+    def __init__(self, avgfn):
+        super(AverageTime, self).__init__()
+
+        self.avgfn = avgfn
+
+
+    def fit_transform(self, X, y, trial_index, window, norm=True):
+        """Average X by trial based on y.
+
+        Parameters
+        ----------
+        X : 2D array-like (n_sample, n_feature)
+            The data to decompose
+        y : 1D array, None by default
+            Sample labels for the data
+        trial_index : 1D array (n_sample, )
+            Each unique entry should match a trial.
+        window : int 
+            Trial length
+        norm : boolean, True by default
+            Norm Xtrial feature level std dev
+
+        Return
+        ------
+        Xavgs : a list of 2D arrays (n_sample, n_components)
+            The averaged trials for 'all' and (optionally) each unique y.
+        avgames : 1D array
+            The names of the components matrices"""
+
+        Xavgs = []
+        avgnames = []
+        unique_y = sorted(np.unique(y))
+
+        # Time averaged trials become features
+        Xavg, feature_names = self.avgfn(X, y, trial_index, window, norm=True)
+
+        # Split by unique_y, put it all togther,
+        Xavgs.append(Xavg)
+        for yi in unique_y:
+            Xavgs.append(Xavg[:, yi == feature_names])
+
+        avgnames = ["all", ] + unique_y
+
+        return Xavgs, avgnames
+
 
 class Time(Spacetime):
     """Decompose in time. Requires a sklearn.decomposition instance."""
