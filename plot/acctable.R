@@ -1,7 +1,5 @@
-.read.process <- function(table){
+.process <- function(df){
     # Read in the table
-    df <- read.table(table,sep=",",header=FALSE)
-
     # Name the cols
     colnames(df) <- c("roi", "sub", "set", "acc")
     print(str(df))
@@ -25,10 +23,10 @@
 }
 
 
-plot_acc_table_hist <- function(table, name, height, width){
+plot.acctable.hist <- function(df, name, height, width){
     library("ggplot2")
     
-    df <- .read.process(table) 
+    df <- .process(df) 
     df <- .create.control.factor(df)
 
     # Get median of control
@@ -49,10 +47,10 @@ plot_acc_table_hist <- function(table, name, height, width){
 }
 
 
-plot_acc_table_box <- function(table, name, height, width){
+plot.acctable.box <- function(df, name, height, width){
     library("ggplot2")
     
-    df <- .read.process(table)
+    df <- .process(df)
     df <- .create.control.factor(df)
 
     # Get median of control

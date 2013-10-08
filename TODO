@@ -1,3 +1,31 @@
-* Create Face and House ROIs
-* Visualize TCs -- improve/mode timecourses R code....
+# Pre
 
+Redo processing/ROI using Makefile.  Get all possible ROIs this time.
+
+# Phase 1.
+FH
+
+1. Space PCA of EVA/FIR.
+2. Time PCA of trials from each voxel.
+
+Ploran
+
+3. Space PCA of EVA.
+
+Compare between 1 and 2
+Compare between 1 and 3
+
+# Meanwhile
+
+- Write python interface for Ploran 2007
+- Reprocess the rest of the data
+- Run simulations of decision signal mixtures w/ PCA, ICA, and so on
+
+# Phase 2
+
+1. Space PCA of EVA/FIR for the rest of the data.
+
+# Phase 3.
+
+1. Classify select components
+2. Non-linear reductions (select? repeat all?).

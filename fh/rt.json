@@ -1,0 +1,10 @@
+{
+    "keep" : { "rt": ["rt1", "rt2", "rt3", "rt4"] }
+    "merge" : {
+        "rt" : {
+            "slow" : ["rt1", "rt2"],
+            "fast" : ["rt3", "rt4"]    
+        }
+    }
+    // "join" : []
+}
