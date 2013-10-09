@@ -1,4 +1,4 @@
-"""PCA reduction for all voxels and trials.  Results saved to a series
+"""FactorAnalysis PCA reduction for all voxels and trials.  Results saved to a series
 of tables named like <name>_<roi>_<cond>.csv.
 
 usage: python ./fa_spacetime.py name roifile cond [, filtfile]

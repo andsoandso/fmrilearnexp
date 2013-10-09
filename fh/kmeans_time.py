@@ -1,4 +1,4 @@
-"""PCA reduction for all voxels and trials.  Results saved to a series
+"""Kmeans clusters for all voxels and trials.  Results saved to a series
 of tables named like <name>_<roi>_<cond>.csv.
 
 usage: python ./kmeans_time.py name roifile cond [, filtfile]
