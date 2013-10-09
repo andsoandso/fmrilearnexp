@@ -121,15 +121,21 @@ class Spacetime(object):
 
         assert checkX(Xc)
         assert Xc.shape[0] == X.shape[0], ("After transform wrong row number")
-        assert Xc.shape[1] <= self.decompr.n_components, ("Too many components")
+
+        # The n_components attr is optional
+        try: 
+            assert Xc.shape[1] <= self.decompr.n_components, ("Too many" 
+                "components")
+        except AttributeError:
+            pass
 
         return Xc
 
 
     def fit_transform(self, X, y, trial_index, window, norm=True):
-        """Converts X into Xtrial form (where the features are 
-        individual trials (n_trials, window)) and decomposes 
-        that matrix, possibly several times depending on y.
+        """Converts X into Xtrial form (where the features are  individual
+        trials (n_trials, window)) and decomposes  that matrix, possibly
+        several times depending on y.
     
         Parameters
         ----------
@@ -186,8 +192,8 @@ class Space(Spacetime):
         self.mode = "eva"
 
     def fit_transform(self, X, y, trial_index, window, norm=True):
-        """Converts X into time-avearage trials and decomposes 
-        that matrix, possibly several times depending on y.
+        """Converts X into time-avearage trials and decomposes  that
+        matrix, possibly several times depending on y.
 
         Parameters
         ----------
@@ -237,15 +243,15 @@ class Space(Spacetime):
         
 
 class AverageTime(object):
-    """Average trials. Requires an average function with a 
-        signature like: 
+    """Average trials. 
 
-        avg(X, y, trial_index, window, norm=True)
+        Requires an average function with a signature like: 
 
-        That returns a Xtrial matrix shaped like 
-        (n_feature * n_cond, window) and an array of 
-        feature names. See fmrilearn.analysis.eva for 
-        an example.
+        Xtrial, feature_names = avg(X, y, trial_index, window, norm=True)
+
+        Where the Xtrial matrix is shaped like 
+        (n_feature * n_cond, window). See 
+        `fmrilearn.analysis.eva` for an example.
     """
 
     def __init__(self, avgfn):
@@ -255,7 +261,7 @@ class AverageTime(object):
 
 
     def fit_transform(self, X, y, trial_index, window, norm=True):
-        """Average X by trial based on y.
+        """Average X by trial based on y (and trial_index).
 
         Parameters
         ----------
@@ -356,7 +362,13 @@ class Time(Spacetime):
         Xcs = []
         bignames = []
         for Xt, csname in zip(Xtrials, csnames):
-            if Xt.shape[1] > self.decompr.n_components:
+            # If no n_components always pass
+            try: 
+                nc = self.decompr.n_components
+            except AttributeError:
+                nc = X.shape[1] - 1  
+
+            if Xt.shape[1] > nc:
                 Xcs.append(self._ft(Xt))
                 bignames.append(csname)
 
