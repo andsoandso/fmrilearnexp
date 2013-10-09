@@ -121,7 +121,7 @@ class Spacetime(object):
 
         assert checkX(Xc)
         assert Xc.shape[0] == X.shape[0], ("After transform wrong row number")
-        assert Xc.shape[1] < self.decompr.n_components, ("Too many components")
+        assert Xc.shape[1] <= self.decompr.n_components, ("Too many components")
 
         return Xc
 
