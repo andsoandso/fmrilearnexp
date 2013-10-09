@@ -119,11 +119,9 @@ class Spacetime(object):
         
         Xc = self.decompr.fit_transform(X)
 
-        checkX(Xc)
-        if Xc.shape[0] != X.shape[0]:
-            raise ValueError("After transform wrong row number.")
-        if Xc.shape[1] > self.decompr.n_components:
-            raise ValueError("Too many components")
+        assert checkX(Xc)
+        assert Xc.shape[0] == X.shape[0], ("After transform wrong row number")
+        assert Xc.shape[1] < self.decompr.n_components, ("Too many components")
 
         return Xc
 
