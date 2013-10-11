@@ -136,13 +136,13 @@ class Spacetime(object):
         uclabels = sorted(np.unique(clabels))
         
         # Average cluster examples, making Xc
-        Xc = np.zeros((nrow, len(unique_cl)))         ## Init w/ 0
+        Xc = np.zeros((nrow, len(uclabels)))         ## Init w/ 0
         for i, ucl in enumerate(uclabels):
-            Xtc[:,i] = X[:,ucl == uclabels].mean(1)  ## Select and avg
+            Xc[:,i] = X[:,ucl == uclabels].mean(1)  ## Select and avg
 
         assert checkX(Xc)
         assert Xc.shape[0] == X.shape[0], ("After transform wrong row number")
-        assert Xc.shape[1] == len(unique_cl), ("Afer transform" 
+        assert Xc.shape[1] == len(uclabels), ("Afer transform" 
             " wrong col number")
 
         return Xc
@@ -208,6 +208,7 @@ class Spacetime(object):
         """
 
         Xtrials = []
+        Xcs = []
         csnames = []
         unique_y = sorted(np.unique(y))
 
@@ -294,6 +295,7 @@ class Space(Spacetime):
         """
 
         Xtrials = []
+        Xcs = []
         csnames = []
         unique_y = sorted(np.unique(y))
 
@@ -305,8 +307,11 @@ class Space(Spacetime):
         for yi in unique_y:
             Xtrials.append(Xtrial[:, yi == feature_names])
 
-        # and decompose
-        Xcs = [self._ft(Xt) for Xt in Xtrials]
+        # and decompose.
+        if self.mode == 'decomp':
+            Xcs = [self._ft(Xt) for Xt in Xtrials]
+        elif self.mode == 'cluster':
+            Xcs = [self._fp(Xt) for Xt in Xtrials]
 
         # Create names
         csnames = ["all", ] + unique_y
@@ -420,7 +425,7 @@ class Time(Spacetime):
         ------
         Xcs : a list of 2D arrays (n_sample, n_components)
             The components for 'all' and (optionally) each unique y.
-            
+
         csnames : 1D array
             The names of the components matrices
         """
@@ -462,7 +467,12 @@ class Time(Spacetime):
                 nc = X.shape[1] - 1  
 
             if Xt.shape[1] > nc:
-                Xcs.append(self._ft(Xt))
+                # and decompose.
+                if self.mode == 'decomp':
+                    Xcs.append(self._ft(Xt))
+                elif self.mode == 'cluster':
+                    Xcs.append(self._fp(Xt))
+                
                 bignames.append(csname)
 
         return Xcs, bignames
