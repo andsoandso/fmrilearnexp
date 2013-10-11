@@ -5,7 +5,6 @@ import numpy as np
 
 from sklearn.preprocessing import scale
 
-from fmrilearn.analysis import eva
 from fmrilearn.load import load_meta
 from fmrilearn.load import load_nii
 from fmrilearn.load import load_roifile
@@ -80,7 +79,7 @@ class DecomposeFH(object):
             # Try to count components for the dataname
             try:
                 dataname = join_by_underscore(False, roiname, 
-                        self.spacetime.decompr.n_components)
+                        self.spacetime.estimator.n_components)
             except AttributeError:
                 dataname = join_by_underscore(False, roiname)
 
@@ -99,32 +98,77 @@ class DecomposeFH(object):
 
 
 class Spacetime(object):
-    """Decompose in spacetime. Requires a sklearn.decomposition instance."""
+    """Decompose in spacetime.
+
+    Parameters
+    ----------
+    estimator : a sklearn estimator object
+        Must implement fit_transform (if in mode='decompose') or 
+        fit_predict (if mode='cluster')
+
+    mode : str ('decompose' by default)
+        Decompose or cluster X?
+    """
     
-    def __init__(self, decompr):
+    def __init__(self, estimator, mode='decompose'):
         super(Spacetime, self).__init__()
-        self._check_decompr(decompr)
-        self.decompr = decompr
+
+        self.mode = mode
+        self.estimator = estimator
 
 
-    def _check_decompr(self, decompr):
-        if not hasattr(decompr, "fit"):
-            raise AttributError("No fit method found on decompr")
-        if not hasattr(decompr, "transform"):
-            raise AttributError("No transform method found on decompr")
+    def _fp(self, X):
+        """The cluster workhorse
+
+        Parameters
+        ----------
+        X : 2D array-like (n_sample, n_feature)
+            The data to decompose
+
+        Return
+        ------
+        Xc - 2D array-like (n_sample, n_clusters)
+        """
+
+        nrow = X.shape[0]
+
+        clabels = self.estimator.fit_predict(X.transpose())
+        uclabels = sorted(np.unique(clabels))
+        
+        # Average cluster examples, making Xc
+        Xc = np.zeros((nrow, len(unique_cl)))         ## Init w/ 0
+        for i, ucl in enumerate(uclabels):
+            Xtc[:,i] = X[:,ucl == uclabels].mean(1)  ## Select and avg
+
+        assert checkX(Xc)
+        assert Xc.shape[0] == X.shape[0], ("After transform wrong row number")
+        assert Xc.shape[1] == len(unique_cl), ("Afer transform" 
+            " wrong col number")
+
+        return Xc
 
 
     def _ft(self, X):
-        """fit_transform workhorse""" 
+        """The decompose workhorse
+
+        Parameters
+        ----------
+        X : 2D array-like (n_sample, n_feature)
+            The data to decompose
+
+        Return
+        ------
+        Xc - 2D array-like (n_sample, n_components)
+        """ 
         
-        Xc = self.decompr.fit_transform(X)
+        Xc = self.estimator.fit_transform(X)
 
         assert checkX(Xc)
         assert Xc.shape[0] == X.shape[0], ("After transform wrong row number")
 
         # The n_components attr is optional
         try: 
-            assert Xc.shape[1] <= self.decompr.n_components, ("Too many" 
+            assert Xc.shape[1] <= self.estimator.n_components, ("Too many" 
                 "components")
         except AttributeError:
             pass
@@ -141,12 +185,16 @@ class Spacetime(object):
         ----------
         X : 2D array-like (n_sample, n_feature)
             The data to decompose
+
         y : 1D array, None by default
             Sample labels for the data
+
         trial_index : 1D array (n_sample, )
             Each unique entry should match a trial.
+
         window : int 
             Trial length
+
         norm : boolean, True by default
             Norm Xtrial feature level std dev
 
@@ -154,6 +202,7 @@ class Spacetime(object):
         ------
         Xcs : a list of 2D arrays (n_sample, n_components)
             The components for 'all' and (optionally) each unique y.
+
         csnames : 1D array
             The names of the components matrices
         """
@@ -175,7 +224,10 @@ class Spacetime(object):
         Xtrials.extend([Xl.transpose() for Xl in Xlabels])
 
         # and decompose.
-        Xcs = [self._ft(Xt) for Xt in Xtrials]
+        if self.mode == 'decomp':
+            Xcs = [self._ft(Xt) for Xt in Xtrials]
+        elif self.mode == 'cluster':
+            Xcs = [self._fp(Xt) for Xt in Xtrials]
 
         # Create names
         csnames = ["all", ] + unique_y
@@ -184,12 +236,32 @@ class Spacetime(object):
 
 
 class Space(Spacetime):
-    """Decompose in space. Requires a sklearn.decomposition instance."""
-        
-    def __init__(self, decompr):
-        super(Space, self).__init__(decompr)
+    """Decompose in space.
 
-        self.mode = "eva"
+    estimator : a sklearn estimator object
+        Must implement fit_transform (if in mode='decompose') or 
+        fit_predict (if mode='cluster')
+
+    avgfn : an averaging fn (see Note)
+
+    mode : str ('decompose' by default)
+        Decompose or cluster X?
+
+    Note
+    ----
+    Requires an average function with a signature like: 
+
+        Xtrial, feature_names = avg(X, y, trial_index, window, norm=True)
+
+    Where the Xtrial matrix is shaped as (window, n_trial * n_unique_y). 
+    See  `fmrilearn.analysis.eva` for an example.
+    """
+        
+    def __init__(self, estimator, avgfn, mode="decompose"):
+        super(Space, self).__init__(estimator, mode)
+
+        self.avgfn = avgfn
+
 
     def fit_transform(self, X, y, trial_index, window, norm=True):
         """Converts X into time-avearage trials and decomposes  that
@@ -199,12 +271,16 @@ class Space(Spacetime):
         ----------
         X : 2D array-like (n_sample, n_feature)
             The data to decompose
+
         y : 1D array, None by default
             Sample labels for the data
+
         trial_index : 1D array (n_sample, )
             Each unique entry should match a trial.
+
         window : int 
             Trial length
+
         norm : False
             A dummy argument
 
@@ -212,6 +288,7 @@ class Space(Spacetime):
         ------
         Xcs : a list of 2D arrays (n_sample, n_components)
             The components for 'all' and (optionally) each unique y.
+
         csnames : 1D array
             The names of the components matrices
         """
@@ -220,13 +297,8 @@ class Space(Spacetime):
         csnames = []
         unique_y = sorted(np.unique(y))
 
-        # Time averaged trials become features
-        if self.mode == "eva":
-            Xtrial, feature_names = eva(X, y, trial_index, window, norm=True)
-        elif self.mode == "fir":
-            raise NotImplementedError("fir implementation needs work")
-        else:
-            raise ValueError("mode not understaood ('eva', 'fir')")
+        Xtrial, feature_names = self.avgfn(
+                X, y, trial_index, window, norm=True)
 
         # Split by unique_y, put it all togther,
         Xtrials.append(Xtrial)
@@ -245,13 +317,14 @@ class Space(Spacetime):
 class AverageTime(object):
     """Average trials. 
 
-        Requires an average function with a signature like: 
+    Parameters
+    ----------
+    Requires an average function with a signature like: 
 
-        Xtrial, feature_names = avg(X, y, trial_index, window, norm=True)
+    Xtrial, feature_names = avg(X, y, trial_index, window, norm=True)
 
-        Where the Xtrial matrix is shaped like 
-        (n_feature * n_cond, window). See 
-        `fmrilearn.analysis.eva` for an example.
+    Where the Xtrial matrix is shaped as (window, n_trial * n_unique_y).
+    See  `fmrilearn.analysis.eva` for an example.
     """
 
     def __init__(self, avgfn):
@@ -267,12 +340,16 @@ class AverageTime(object):
         ----------
         X : 2D array-like (n_sample, n_feature)
             The data to decompose
+
         y : 1D array, None by default
             Sample labels for the data
+
         trial_index : 1D array (n_sample, )
             Each unique entry should match a trial.
+
         window : int 
             Trial length
+
         norm : boolean, True by default
             Norm Xtrial feature level std dev
 
@@ -280,6 +357,7 @@ class AverageTime(object):
         ------
         Xavgs : a list of 2D arrays (n_sample, n_components)
             The averaged trials for 'all' and (optionally) each unique y.
+
         avgames : 1D array
             The names of the components matrices"""
 
@@ -301,10 +379,20 @@ class AverageTime(object):
 
 
 class Time(Spacetime):
-    """Decompose in time. Requires a sklearn.decomposition instance."""
+    """Decompose in time.
 
-    def __init__(self, decompr):
-        super(Time, self).__init__(decompr)
+    Parameters
+    ----------
+    estimator : a sklearn estimator object
+        Must implement fit_transform (if in mode='decompose') or 
+        fit_predict (if mode='cluster')
+
+    mode : str ('decompose' by default)
+        Decompose or cluster X?
+    """
+
+    def __init__(self, estimator, mode="decompose"):
+        super(Time, self).__init__(estimator, mode)
         
 
     def fit_transform(self, X, y, trial_index, window, norm=True):
@@ -315,12 +403,16 @@ class Time(Spacetime):
         ----------
         X : 2D array-like (n_sample, n_feature)
             The data to decompose
+
         y : 1D array, None by default
             Sample labels for the data
+
         trial_index : 1D array (n_sample, )
             Each unique entry should match a trial.
+
         window : int 
             Trial length
+
         norm : boolean, True by default
             Norm Xtrial feature level std dev
 
@@ -328,6 +420,7 @@ class Time(Spacetime):
         ------
         Xcs : a list of 2D arrays (n_sample, n_components)
             The components for 'all' and (optionally) each unique y.
+            
         csnames : 1D array
             The names of the components matrices
         """
@@ -364,7 +457,7 @@ class Time(Spacetime):
         for Xt, csname in zip(Xtrials, csnames):
             # If no n_components always pass
             try: 
-                nc = self.decompr.n_components
+                nc = self.estimator.n_components
             except AttributeError:
                 nc = X.shape[1] - 1  
 

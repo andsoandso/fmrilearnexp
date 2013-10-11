@@ -10,6 +10,8 @@ import numpy as np
 from sklearn.decomposition import PCA
 
 from fmrilearn.load import load_roifile
+from fmrilearn.analysis import eva
+
 from fmrilearnexp.base import Space
 from fmrilearnexp.base import DecomposeFH
 
@@ -35,7 +37,7 @@ else:
 # ---------------------------------------------------------------------------
 # Setup exp
 # ---------------------------------------------------------------------------
-spacetime = Space(PCA(6, whiten=True))
+spacetime = Space(PCA(6, whiten=True), eva)
 exp = DecomposeFH(spacetime, window=11, nsig=3)
 
 # ---------------------------------------------------------------------------

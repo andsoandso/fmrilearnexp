@@ -7,8 +7,9 @@ import sys, os
 import numpy as np
 
 from sklearn.cluster import KMeans
-
+from fmrilearn.analysis import eva
 from fmrilearn.load import load_roifile
+
 from fmrilearnexp.base import Space
 from fmrilearnexp.base import DecomposeFH
 
@@ -34,7 +35,7 @@ else:
 # ---------------------------------------------------------------------------
 # Setup exp
 # ---------------------------------------------------------------------------
-spacetime = Space(KMeans(6))
+spacetime = Space(KMeans(6), eva, mode="cluster")
 exp = DecomposeFH(spacetime, window=11, nsig=3)
 
 # ---------------------------------------------------------------------------
