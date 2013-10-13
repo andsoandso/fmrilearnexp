@@ -3,7 +3,7 @@ import sys, os
 import pandas as pd
 import numpy as np
 
-from sklearn.preprocessing import scale
+from sklearn.preprocessing import MinMaxScaler
 
 from fmrilearn.load import load_meta
 from fmrilearn.load import load_nii
@@ -71,7 +71,7 @@ class DecomposeFH(object):
             # finally decompose.
             Xcs, csnames = self.spacetime.fit_transform(
                     X, targets["y"], targets["trial_index"], 
-                    self.window, norm=True)
+                    self.window)
             
             # Name them,
             csnames = ["all", ] + sorted(np.unique(targets["y"]))
@@ -138,7 +138,8 @@ class Spacetime(object):
         # Average cluster examples, making Xc
         Xc = np.zeros((nrow, len(uclabels)))         ## Init w/ 0
         for i, ucl in enumerate(uclabels):
-            Xc[:,i] = X[:,ucl == uclabels].mean(1)  ## Select and avg
+            clustermean = X[:,ucl == uclabels].mean(1)
+            Xc[:,i] = clustermean  ## Select and avg
 
         assert checkX(Xc)
         assert Xc.shape[0] == X.shape[0], ("After transform wrong row number")
@@ -176,7 +177,7 @@ class Spacetime(object):
         return Xc
 
 
-    def fit_transform(self, X, y, trial_index, window, norm=True):
+    def fit_transform(self, X, y, trial_index, window):
         """Converts X into Xtrial form (where the features are  individual
         trials (n_trials, window)) and decomposes  that matrix, possibly
         several times depending on y.
@@ -195,9 +196,6 @@ class Spacetime(object):
         window : int 
             Trial length
 
-        norm : boolean, True by default
-            Norm Xtrial feature level std dev
-
         Return
         ------
         Xcs : a list of 2D arrays (n_sample, n_components)
@@ -212,10 +210,10 @@ class Spacetime(object):
         csnames = []
         unique_y = sorted(np.unique(y))
 
-        # Reshape by trials
+        # Reshape by trials, rescale too
         Xtrial, feature_names = by_trial(X, trial_index, window, y)
-        if norm:
-            scale(Xtrial.astype(np.float), axis=0, with_mean=False, copy=False)
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        Xtrial = scaler.fit_transform(Xtrial.astype(np.float))
 
         # and split by unique_y
         Xlabels, _ = by_labels(X=Xtrial.transpose(), y=feature_names)
@@ -225,10 +223,12 @@ class Spacetime(object):
         Xtrials.extend([Xl.transpose() for Xl in Xlabels])
 
         # and decompose.
-        if self.mode == 'decomp':
+        if self.mode == 'decompose':
             Xcs = [self._ft(Xt) for Xt in Xtrials]
         elif self.mode == 'cluster':
             Xcs = [self._fp(Xt) for Xt in Xtrials]
+        else:
+            raise ValueError("mode not understood.")
 
         # Create names
         csnames = ["all", ] + unique_y
@@ -264,7 +264,7 @@ class Space(Spacetime):
         self.avgfn = avgfn
 
 
-    def fit_transform(self, X, y, trial_index, window, norm=True):
+    def fit_transform(self, X, y, trial_index, window):
         """Converts X into time-avearage trials and decomposes  that
         matrix, possibly several times depending on y.
 
@@ -282,7 +282,7 @@ class Space(Spacetime):
         window : int 
             Trial length
 
-        norm : False
+        norm : True
             A dummy argument
 
         Return
@@ -299,8 +299,7 @@ class Space(Spacetime):
         csnames = []
         unique_y = sorted(np.unique(y))
 
-        Xtrial, feature_names = self.avgfn(
-                X, y, trial_index, window, norm=True)
+        Xtrial, feature_names = self.avgfn(X, y, trial_index, window)
 
         # Split by unique_y, put it all togther,
         Xtrials.append(Xtrial)
@@ -308,14 +307,16 @@ class Space(Spacetime):
             Xtrials.append(Xtrial[:, yi == feature_names])
 
         # and decompose.
-        if self.mode == 'decomp':
+        if self.mode == 'decompose':
             Xcs = [self._ft(Xt) for Xt in Xtrials]
         elif self.mode == 'cluster':
             Xcs = [self._fp(Xt) for Xt in Xtrials]
+        else:
+            raise ValueError("mode not understood.")
 
         # Create names
         csnames = ["all", ] + unique_y
-
+        
         return Xcs, csnames        
         
 
@@ -338,7 +339,7 @@ class AverageTime(object):
         self.avgfn = avgfn
 
 
-    def fit_transform(self, X, y, trial_index, window, norm=True):
+    def fit_transform(self, X, y, trial_index, window):
         """Average X by trial based on y (and trial_index).
 
         Parameters
@@ -371,7 +372,7 @@ class AverageTime(object):
         unique_y = sorted(np.unique(y))
 
         # Time averaged trials become features
-        Xavg, feature_names = self.avgfn(X, y, trial_index, window, norm=True)
+        Xavg, feature_names = self.avgfn(X, y, trial_index, window)
 
         # Split by unique_y, put it all togther,
         Xavgs.append(Xavg)
@@ -400,7 +401,7 @@ class Time(Spacetime):
         super(Time, self).__init__(estimator, mode)
         
 
-    def fit_transform(self, X, y, trial_index, window, norm=True):
+    def fit_transform(self, X, y, trial_index, window):
         """Converts X into Xtrial for each feature and decomposes 
         each matrix, possibly several times depending on y.
 
@@ -439,9 +440,8 @@ class Time(Spacetime):
             xj = X[:,j][:,np.newaxis]  ## Need 2D
 
             Xtrial, feature_names = by_trial(xj, trial_index, window, y)
-            if norm:
-                scale(Xtrial.astype(np.float), 
-                        axis=0, with_mean=False, copy=False)
+            scaler = MinMaxScaler(feature_range=(0, 1))
+            Xtrial = scaler.fit_transform(Xtrial.astype(np.float))
             
             # then by cond,
             Xlabels, _ = by_labels(X=Xtrial.transpose(), y=feature_names)
@@ -468,11 +468,13 @@ class Time(Spacetime):
 
             if Xt.shape[1] > nc:
                 # and decompose.
-                if self.mode == 'decomp':
+                if self.mode == 'decompose':
                     Xcs.append(self._ft(Xt))
                 elif self.mode == 'cluster':
                     Xcs.append(self._fp(Xt))
-                
+                else:
+                    raise ValueError("mode not understood.")
+
                 bignames.append(csname)
 
         return Xcs, bignames

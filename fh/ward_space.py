@@ -1,7 +1,7 @@
 """Kmeans clusters for all voxels and trials.  Results saved to a series
 of tables named like <name>_<roi>_<cond>.csv.
 
-usage: python ./wald_space.py name roifile cond [, filtfile]
+usage: python ./ward_space.py name roifile cond [, filtfile]
 """
 import sys, os
 import numpy as np
@@ -35,7 +35,7 @@ else:
 # ---------------------------------------------------------------------------
 # Setup exp
 # ---------------------------------------------------------------------------
-spacetime = Space(Ward(6), eva, mode="cluster")
+spacetime = Space(Ward(n_clusters=6), eva, mode="cluster")
 exp = DecomposeFH(spacetime, window=11, nsig=3)
 
 # ---------------------------------------------------------------------------
