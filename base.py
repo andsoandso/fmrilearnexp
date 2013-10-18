@@ -55,7 +55,7 @@ class DecomposeFH(object):
             # If were past the first Ss data, append.
             if roicount > 0:
                 mode = 'a'
-                header = False    
+                header = False
 
             # Get metadata
             trs, trial_index, y = load_meta(["TR", "trialcount", cond], meta)
@@ -361,7 +361,7 @@ class AverageTime(object):
 
         Return
         ------
-        Xavgs : a list of 2D arrays (n_sample, n_components)
+        Xavgs : a list of 2D arrays (n_sample, 1)
             The averaged trials for 'all' and (optionally) each unique y.
 
         avgames : 1D array
@@ -375,9 +375,9 @@ class AverageTime(object):
         Xavg, feature_names = self.avgfn(X, y, trial_index, window)
 
         # Split by unique_y, put it all togther,
-        Xavgs.append(Xavg)
+        Xavgs.append(Xavg.mean(1)[:,np.newaxis])
         for yi in unique_y:
-            Xavgs.append(Xavg[:, yi == feature_names])
+            Xavgs.append(Xavg[:, yi == feature_names].mean(1)[:,np.newaxis])
 
         avgnames = ["all", ] + unique_y
 
