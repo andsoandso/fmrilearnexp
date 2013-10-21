@@ -11,6 +11,7 @@ from fmrilearn.load import load_roifile
 from fmrilearn.load import load_meta
 from fmrilearn.save import save_tcdf
 from fmrilearn.preprocess.data import checkX
+from fmrilearn.preprocess.data import smooth as smoothfn
 from fmrilearn.preprocess.reshape import by_trial
 from fmrilearn.preprocess.split import by_labels
 from fmrilearn.preprocess.labels import construct_targets
@@ -20,9 +21,89 @@ from fmrilearn.preprocess.labels import filter_targets
 from wheelerdata.load.fh import get_roi_data_paths
 from wheelerdata.load.fh import get_metapaths_containing
 from wheelerdata.load.fh import get_motor_metadata_paths
+from wheelerdata.load.simulated import make_bold
 
 from fmrilearnexp.common import get_roiname
 from fmrilearnexp.common import join_by_underscore
+
+
+class DecomposeSimulation(object):
+    """A simulation of the facehouse decomposition experiment"""
+    def __init__(self, spacetime, window=11, nsig=3):
+        super(DecomposeSimulation, self).__init__()
+        
+        self.spacetime = spacetime
+        self.window = window
+        self.nsig = nsig
+
+        # Create a random seed for repproducublity.
+        # Need to mod make_bold to accept it
+
+    def run(self, basename, smooth=False, filtfile=None, 
+        n=None, tr=None, n_rt=None, n_trials_per_cond=None,
+        durations=None ,noise=None, n_features=None, n_univariate=None, 
+        n_accumulator=None, n_decision=None, n_noise=None, 
+        n_repeated=None, drift_noise=False, step_noise=False):
+        
+        # Write init
+        mode = 'w'
+        header = True
+
+        for scode in range(n):
+            # If were past the first Ss data, append.
+            if scode > 0:
+                mode = 'a'
+                header = False
+
+            # Create the data
+            X, y, y_trialcount = make_bold(
+                    n_rt, 
+                    n_trials_per_cond, 
+                    tr, 
+                    durations=durations, 
+                    noise=noise, 
+                    n_features=n_features, 
+                    n_univariate=n_univariate, 
+                    n_accumulator=n_accumulator, 
+                    n_decision=n_decision,
+                    n_noise=n_noise,
+                    n_repeated=n_repeated,
+                    drift_noise=drift_noise,
+                    step_noise=step_noise)
+
+            targets = construct_targets(trial_index=y_trialcount, y=y)
+
+            # Drop baseline trials created by make_bold
+            baselinemask = np.arange(y.shape[0])[y != 0]
+            X = X[baselinemask, ]
+            targets = filter_targets(baselinemask, targets)
+
+            # Filter and
+            if filtfile is not None:
+                filterX(filtfile, X, targets)
+            if smooth:
+                X = smoothfn(X, tr=1.5, ub=0.10, lb=0.001)
+
+            # finally decompose.
+            Xcs, csnames = self.spacetime.fit_transform(
+                    X, targets["y"], targets["trial_index"], 
+                    self.window)
+            
+            # Name them,
+            csnames = ["all", ] + sorted(np.unique(targets["y"]))
+
+            # and write.
+            for Xc, csname in zip(Xcs, csnames):
+                save_tcdf(
+                        name=join_by_underscore(True, basename, csname), 
+                        X=Xc, 
+                        cond=csname,
+                        dataname=join_by_underscore(False, 
+                                os.path.split(basename)[-1], scode),
+                        index='auto',
+                        header=header, 
+                        mode=mode,
+                        float_format="%.{0}f".format(self.nsig))
 
 
 class DecomposeFH(object):
@@ -297,13 +378,14 @@ class Space(Spacetime):
         Xtrials = []
         Xcs = []
         csnames = []
-        unique_y = sorted(np.unique(y))
+        # unique_y = sorted(np.unique(y))
 
         Xtrial, feature_names = self.avgfn(X, y, trial_index, window)
+        unique_fn = sorted(np.unique(feature_names))
 
         # Split by unique_y, put it all togther,
         Xtrials.append(Xtrial)
-        for yi in unique_y:
+        for yi in unique_fn:
             Xtrials.append(Xtrial[:, yi == feature_names])
 
         # and decompose.
@@ -314,9 +396,7 @@ class Space(Spacetime):
         else:
             raise ValueError("mode not understood.")
 
-        # Create names
-        csnames = ["all", ] + unique_y
-        
+        # Create names        
         return Xcs, csnames        
         
 
