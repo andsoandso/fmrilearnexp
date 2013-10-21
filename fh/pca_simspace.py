@@ -1,7 +1,7 @@
 """PCA reduction for all voxels and trials.  Results saved to a series
-of tables named like <name>_<roi>_<cond>.csv.
+of tables named like <name>_<param_name>_<cond>.csv.
 
-usage: python ./pca_space.py name paramfile [, filtfile]
+usage: python ./pca_simspace.py name paramfile [, filtfile]
 """
 
 import sys, os
