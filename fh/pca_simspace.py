@@ -42,10 +42,8 @@ exp = DecomposeSimulation(spacetime, window=11, nsig=3)
 # ---------------------------------------------------------------------------
 # And each sim parameter set
 # ---------------------------------------------------------------------------
-
 for n, paramsetname in enumerate(paramsets.keys()):
     print("{0} ({1}/{2})".format(paramsetname, n+1, len(paramsets)))   
-        ## Progress marker
     exp.run(basename+"_"+paramsetname, smooth=False, filtfile=filtfile, 
             **paramsets[paramsetname])
 

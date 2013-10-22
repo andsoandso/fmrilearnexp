@@ -449,17 +449,17 @@ class AverageTime(object):
 
         Xavgs = []
         avgnames = []
-        unique_y = sorted(np.unique(y))
 
         # Time averaged trials become features
         Xavg, feature_names = self.avgfn(X, y, trial_index, window)
+        unique_fn = sorted(np.unique(feature_names))
 
         # Split by unique_y, put it all togther,
         Xavgs.append(Xavg.mean(1)[:,np.newaxis])
-        for yi in unique_y:
+        for yi in unique_fn:
             Xavgs.append(Xavg[:, yi == feature_names].mean(1)[:,np.newaxis])
 
-        avgnames = ["all", ] + unique_y
+        avgnames = ["all", ] + unique_fn
 
         return Xavgs, avgnames
 
