@@ -177,9 +177,9 @@ class DecomposeFH(object):
                         float_format="%.{0}f".format(self.nsig))
             roicount += 1
 
-
+    
 class Spacetime(object):
-    """Decompose in spacetime.
+    """Decompose trials in spacetime.
 
     Parameters
     ----------
@@ -317,8 +317,65 @@ class Spacetime(object):
         return Xcs, csnames
 
 
+class Voxel(Spacetime):
+    """Decompose voxels, then break into trials.
+    
+    Completely overides Spacetime.run()
+
+    Parameters
+    ----------
+    estimator : a sklearn estimator object
+        Must implement fit_transform (if in mode='decompose') or 
+        fit_predict (if mode='cluster')
+
+    mode : str ('decompose' by default)
+        Decompose or cluster X?
+    """
+
+    def __init__(self, estimator, mode="decompose"):
+        super(Voxel, self).__init__(estimator, mode)
+
+
+    def fit_transform(self, X, y, trial_index, window):
+        Xcs = []
+        csnames = []
+
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        X = scaler.fit_transform(X.astype(np.float))
+        
+        if self.mode == 'decompose':
+            Xc = self._ft(X)
+        elif self.mode == 'cluster':
+            Xc = self._fp(X)
+        else:
+            raise ValueError("mode not understood.")
+
+        # Create Xcs
+        unique_y = sorted(np.unique(y))
+        csnames = ["all", ] + unique_y
+        for j in range(len(csnames)):
+            Xcs.append(np.zeros([window, Xc.shape[1]]))
+
+        for j in range(Xc.shape[1]):
+            xc = Xc[:,j]
+            xc = xc[:,np.newaxis]
+            Xtrial, feature_names = by_trial(xc, trial_index, window, y)
+            unique_fn = sorted(np.unique(feature_names))
+
+            # For the current comp j,
+            # split up into Xtrials and
+            # average each
+            Xlabels, _ = by_labels(X=Xtrial.transpose(), y=feature_names)
+            
+            Xcs[0][:,j] = Xtrial.mean(1)    
+            for i, xl in enumerate(Xlabels):
+                Xcs[i+1][:,j] = xl.transpose().mean(1)
+        
+        return Xcs, csnames
+
+
 class Space(Spacetime):
-    """Decompose in space.
+    """Decompose trials in space.
 
     estimator : a sklearn estimator object
         Must implement fit_transform (if in mode='decompose') or 
@@ -465,7 +522,7 @@ class AverageTime(object):
 
 
 class Time(Spacetime):
-    """Decompose in time.
+    """Decompose trial in time.
 
     Parameters
     ----------
