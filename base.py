@@ -366,7 +366,7 @@ class Voxel(Spacetime):
             # split up into Xtrials and
             # average each
             Xlabels, _ = by_labels(X=Xtrial.transpose(), y=feature_names)
-            
+
             Xcs[0][:,j] = Xtrial.mean(1)    
             for i, xl in enumerate(Xlabels):
                 Xcs[i+1][:,j] = xl.transpose().mean(1)
@@ -439,10 +439,13 @@ class Space(Spacetime):
 
         Xtrial, feature_names = self.avgfn(X, y, trial_index, window)
         unique_fn = sorted(np.unique(feature_names))
+        unique_y = sorted(np.unique(y))
 
-        # Split by unique_y, put it all togther,
+        # Loop over unique_y not unique_fn as we want to
+        # pull apart what was in the orginal y, 
+        # not anything that unique_fn may contain.
         Xtrials.append(Xtrial)
-        for yi in unique_fn:
+        for yi in unique_y:
             Xtrials.append(Xtrial[:, yi == feature_names])
 
         # and decompose.
@@ -453,8 +456,7 @@ class Space(Spacetime):
         else:
             raise ValueError("mode not understood.")
 
-        # Create names        
-        return Xcs, csnames        
+        return Xcs, unique_fn      
         
 
 class AverageTime(object):
