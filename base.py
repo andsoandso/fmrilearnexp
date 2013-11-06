@@ -8,19 +8,18 @@ from sklearn.preprocessing import MinMaxScaler
 from fmrilearn.load import load_meta
 from fmrilearn.load import load_nii
 from fmrilearn.load import load_roifile
-from fmrilearn.load import load_meta
 from fmrilearn.save import save_tcdf
 from fmrilearn.preprocess.data import checkX
+from fmrilearn.preprocess.data import filterX
 from fmrilearn.preprocess.data import smooth as smoothfn
 from fmrilearn.preprocess.reshape import by_trial
 from fmrilearn.preprocess.split import by_labels
 from fmrilearn.preprocess.labels import construct_targets
 from fmrilearn.preprocess.labels import construct_filter
 from fmrilearn.preprocess.labels import filter_targets
+from fmrilearn.preprocess.labels import csv_to_targets
 
-from wheelerdata.load.fh import get_roi_data_paths
-from wheelerdata.load.fh import get_metapaths_containing
-from wheelerdata.load.fh import get_motor_metadata_paths
+from wheelerdata.load.fh import FH
 from wheelerdata.load.simulated import make_bold
 
 from fmrilearnexp.common import get_roiname
@@ -80,7 +79,7 @@ class DecomposeSimulation(object):
 
             # Filter and
             if filtfile is not None:
-                filterX(filtfile, X, targets)
+                X, targets = filterX(filtfile, X, targets)
             if smooth:
                 X = smoothfn(X, tr=1.5, ub=0.10, lb=0.001)
 
@@ -90,7 +89,7 @@ class DecomposeSimulation(object):
                     self.window)
             
             # Name them,
-            csnames = ["all", ] + sorted(np.unique(targets["y"]))
+            csnames = sorted(np.unique(targets["y"]))
 
             # and write.
             for Xc, csname in zip(Xcs, csnames):
@@ -106,14 +105,17 @@ class DecomposeSimulation(object):
                         float_format="%.{0}f".format(self.nsig))
 
 
-class DecomposeFH(object):
-    """A facehouse decomposition experiment."""
-    def __init__(self, spacetime, window=11, nsig=3):
-        super(DecomposeFH, self).__init__()
+class DecomposeExp(object):
+    """A decomposition experiment."""
+    def __init__(self, spacetime, data, window=11, nsig=3, tr=1.5):
+        super(DecomposeExp, self).__init__()
         
         self.spacetime = spacetime
         self.window = window
         self.nsig = nsig
+        self.tr = tr
+        self.data = data
+
 
     def run(self, basename, roi, cond, smooth=False, filtfile=None):
         # Save here....
@@ -125,8 +127,8 @@ class DecomposeFH(object):
         header = True
 
         # Getting to work, find subjects data
-        paths = get_roi_data_paths(roi)
-        metas = get_metapaths_containing(cond)
+        paths = self.data.get_roi_data_paths(roi)
+        metas = self.data.get_metapaths_containing(cond)
 
         # And decompose it
         for path, meta in zip(paths, metas):
@@ -138,24 +140,20 @@ class DecomposeFH(object):
                 mode = 'a'
                 header = False
 
-            # Get metadata
-            trs, trial_index, y = load_meta(["TR", "trialcount", cond], meta)
-            targets = construct_targets(trial_index=trial_index, trs=trs, y=y)
+            # Get all metadata
+            targets = csv_to_targets(meta)
 
             # and data, preprocess too,
             X = load_nii(path, clean=True, sparse=False, smooth=smooth)
-            X = X[trs,:]
+            X = X[targets["TR"],:]
 
             if filtfile is not None:
-                filterX(filtfile, X, targets)
-
-            # finally decompose.
-            Xcs, csnames = self.spacetime.fit_transform(
-                    X, targets["y"], targets["trial_index"], 
-                    self.window)
+                X, targets = filterX(filtfile, X, targets)
             
-            # Name them,
-            csnames = ["all", ] + sorted(np.unique(targets["y"]))
+
+            Xcs, csnames = self.spacetime.fit_transform(
+                    X, targets[cond], targets["trialcount"], 
+                    self.window, self.tr)
             
             # Try to count components for the dataname
             try:
@@ -177,26 +175,22 @@ class DecomposeFH(object):
                         float_format="%.{0}f".format(self.nsig))
             roicount += 1
 
-    
-class Spacetime(object):
-    """Decompose trials in spacetime.
 
-    Parameters
-    ----------
-    estimator : a sklearn estimator object
-        Must implement fit_transform (if in mode='decompose') or 
-        fit_predict (if mode='cluster')
+class Decompose(object):
+    """A template for decomposition objects.
 
-    mode : str ('decompose' by default)
-        Decompose or cluster X?
+    The only public method should be `fit_transform` which
+    has the a signture like:
+
+        fit_transform(self, X, y, trial_index, window)
     """
-    
+
     def __init__(self, estimator, mode='decompose'):
-        super(Spacetime, self).__init__()
+        super(Decompose, self).__init__()
 
         self.mode = mode
         self.estimator = estimator
-
+    
 
     def _fp(self, X):
         """The cluster workhorse
@@ -219,7 +213,7 @@ class Spacetime(object):
         # Average cluster examples, making Xc
         Xc = np.zeros((nrow, len(uclabels)))         ## Init w/ 0
         for i, ucl in enumerate(uclabels):
-            clustermean = X[:,ucl == uclabels].mean(1)
+            clustermean = X[:,np.str(ucl) == uclabels].mean(1)
             Xc[:,i] = clustermean  ## Select and avg
 
         assert checkX(Xc)
@@ -259,6 +253,28 @@ class Spacetime(object):
 
 
     def fit_transform(self, X, y, trial_index, window):
+        raise NotImplementedError("Subclass `Decompose` then implement this")
+
+
+class Spacetime(Decompose):
+    """Decompose trials in spacetime.
+
+    Parameters
+    ----------
+    estimator : a sklearn estimator object
+        Must implement fit_transform (if in mode='decompose') or 
+        fit_predict (if mode='cluster')
+
+    mode : str ('decompose' by default)
+        Decompose or cluster X?
+    """
+    
+
+    def __init__(self, estimator, mode='decompose'):
+        super(Spacetime, self).__init__(estimator, mode)
+
+
+    def fit_transform(self, X, y, trial_index, window):
         """Converts X into Xtrial form (where the features are  individual
         trials (n_trials, window)) and decomposes  that matrix, possibly
         several times depending on y.
@@ -280,7 +296,7 @@ class Spacetime(object):
         Return
         ------
         Xcs : a list of 2D arrays (n_sample, n_components)
-            The components for 'all' and (optionally) each unique y.
+            The components for each unique y.
 
         csnames : 1D array
             The names of the components matrices
@@ -289,10 +305,11 @@ class Spacetime(object):
         Xtrials = []
         Xcs = []
         csnames = []
-        unique_y = sorted(np.unique(y))
 
         # Reshape by trials, rescale too
         Xtrial, feature_names = by_trial(X, trial_index, window, y)
+        unique_fn = sorted(np.unique(feature_names))
+
         scaler = MinMaxScaler(feature_range=(0, 1))
         Xtrial = scaler.fit_transform(Xtrial.astype(np.float))
 
@@ -300,7 +317,6 @@ class Spacetime(object):
         Xlabels, _ = by_labels(X=Xtrial.transpose(), y=feature_names)
 
         # put all that together
-        Xtrials.append(Xtrial)
         Xtrials.extend([Xl.transpose() for Xl in Xlabels])
 
         # and decompose.
@@ -311,13 +327,10 @@ class Spacetime(object):
         else:
             raise ValueError("mode not understood.")
 
-        # Create names
-        csnames = ["all", ] + unique_y
-
-        return Xcs, csnames
+        return Xcs, 
 
 
-class Voxel(Spacetime):
+class Voxel(Decompose):
     """Decompose voxels, then break into trials.
     
     Completely overides Spacetime.run()
@@ -351,8 +364,7 @@ class Voxel(Spacetime):
             raise ValueError("mode not understood.")
 
         # Create Xcs
-        unique_y = sorted(np.unique(y))
-        csnames = ["all", ] + unique_y
+        csnames = sorted(np.unique(y))
         for j in range(len(csnames)):
             Xcs.append(np.zeros([window, Xc.shape[1]]))
 
@@ -374,7 +386,7 @@ class Voxel(Spacetime):
         return Xcs, csnames
 
 
-class Space(Spacetime):
+class Space(Decompose):
     """Decompose trials in space.
 
     estimator : a sklearn estimator object
@@ -402,7 +414,7 @@ class Space(Spacetime):
         self.avgfn = avgfn
 
 
-    def fit_transform(self, X, y, trial_index, window):
+    def fit_transform(self, X, y, trial_index, window, tr):
         """Converts X into time-avearage trials and decomposes  that
         matrix, possibly several times depending on y.
 
@@ -426,7 +438,7 @@ class Space(Spacetime):
         Return
         ------
         Xcs : a list of 2D arrays (n_sample, n_components)
-            The components for 'all' and (optionally) each unique y.
+            The components for each unique y.
 
         csnames : 1D array
             The names of the components matrices
@@ -435,18 +447,16 @@ class Space(Spacetime):
         Xtrials = []
         Xcs = []
         csnames = []
-        # unique_y = sorted(np.unique(y))
-
-        Xtrial, feature_names = self.avgfn(X, y, trial_index, window)
+        
+        Xtrial, feature_names = self.avgfn(X, y, trial_index, window, tr)
         unique_fn = sorted(np.unique(feature_names))
-        unique_y = sorted(np.unique(y))
 
         # Loop over unique_y not unique_fn as we want to
         # pull apart what was in the orginal y, 
         # not anything that unique_fn may contain.
-        Xtrials.append(Xtrial)
-        for yi in unique_y:
-            Xtrials.append(Xtrial[:, yi == feature_names])
+        # Xtrials.append(Xtrial)
+        for yi in unique_fn:
+            Xtrials.append(Xtrial[:, np.str(yi) == feature_names])
 
         # and decompose.
         if self.mode == 'decompose':
@@ -501,7 +511,7 @@ class AverageTime(object):
         Return
         ------
         Xavgs : a list of 2D arrays (n_sample, 1)
-            The averaged trials for 'all' and (optionally) each unique y.
+            The averaged trials for each unique y.
 
         avgames : 1D array
             The names of the components matrices"""
@@ -510,20 +520,18 @@ class AverageTime(object):
         avgnames = []
 
         # Time averaged trials become features
-        Xavg, feature_names = self.avgfn(X, y, trial_index, window)
+        Xavg, feature_names = self.avgfn(X, y, trial_index, window, tr)
         unique_fn = sorted(np.unique(feature_names))
 
         # Split by unique_y, put it all togther,
-        Xavgs.append(Xavg.mean(1)[:,np.newaxis])
         for yi in unique_fn:
-            Xavgs.append(Xavg[:, yi == feature_names].mean(1)[:,np.newaxis])
+            Xavgs.append(
+                Xavg[:, np.str(yi) == feature_names].mean(1)[:,np.newaxis])
 
-        avgnames = ["all", ] + unique_fn
-
-        return Xavgs, avgnames
+        return Xavgs, unique_fn
 
 
-class Time(Spacetime):
+class Time(Decompose):
     """Decompose trial in time.
 
     Parameters
@@ -564,7 +572,7 @@ class Time(Spacetime):
         Return
         ------
         Xcs : a list of 2D arrays (n_sample, n_components)
-            The components for 'all' and (optionally) each unique y.
+            The components for each unique y.
 
         csnames : 1D array
             The names of the components matrices
@@ -586,16 +594,14 @@ class Time(Spacetime):
             Xlabels, _ = by_labels(X=Xtrial.transpose(), y=feature_names)
             
             # put all that together,
-            Xtrials.append(Xtrial)
             Xtrials.extend([Xl.transpose() for Xl in Xlabels])
 
             # names too.
-            csnames.append(join_by_underscore(False, "all", j))
             csnames.extend([join_by_underscore(False, uy, j) for 
                     uy in unique_y])
 
         # And decompose after making 
-        # sure there is enough data.
+        # sure there is enough self.data.
         Xcs = []
         bignames = []
         for Xt, csname in zip(Xtrials, csnames):

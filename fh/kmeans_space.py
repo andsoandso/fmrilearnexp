@@ -11,7 +11,8 @@ from fmrilearn.analysis import eva
 from fmrilearn.load import load_roifile
 
 from fmrilearnexp.base import Space
-from fmrilearnexp.base import DecomposeFH
+from fmrilearnexp.base import DecomposeExp
+from wheelerdata.load.fh import FH
 
 
 # ---------------------------------------------------------------------------
@@ -35,12 +36,13 @@ else:
 # ---------------------------------------------------------------------------
 # Setup exp
 # ---------------------------------------------------------------------------
+data = FH()
 spacetime = Space(KMeans(6), eva, mode="cluster")
-exp = DecomposeFH(spacetime, window=11, nsig=3)
+exp = DecomposeExp(spacetime, data, window=11, nsig=3)
 
 # ---------------------------------------------------------------------------
 # And run each roi
 # ---------------------------------------------------------------------------
 for n, roi in enumerate(rois):
     print("{0} ({1}/{2})".format(roi, n+1, len(rois)))   ## Progress marker
-    exp.run(basename, roi, cond, smooth=False, filtfile=None)
+    exp.run(basename, roi, cond, smooth=False, filtfile=filtfile)
