@@ -47,5 +47,5 @@ exp = DecomposeExp(spacetime, data, window=11, nsig=3)
 # ---------------------------------------------------------------------------
 for n, roi in enumerate(rois):
     print("{0} ({1}/{2})".format(roi, n+1, len(rois)))   ## Progress marker
-    exp.run(basename, roi, cond, smooth=False, filtfile=filtfile)
+    exp.run(basename, roi, cond, smooth=False, filtfile=filtfile, event=True)
 

@@ -117,7 +117,7 @@ class DecomposeExp(object):
         self.data = data
 
 
-    def run(self, basename, roi, cond, smooth=False, filtfile=None):
+    def run(self, basename, roi, cond, smooth=False, filtfile=None, event=False):
         # Save here....
         table = join_by_underscore(False, basename, roi, cond)
 
@@ -128,7 +128,10 @@ class DecomposeExp(object):
 
         # Getting to work, find subjects data
         paths = self.data.get_roi_data_paths(roi)
-        metas = self.data.get_metapaths_containing(cond)
+        if not event:
+            metas = self.data.get_metapaths_containing(cond)
+        else:
+            metas = self.data.get_RT_metadata_event_paths()
 
         # And decompose it
         for path, meta in zip(paths, metas):
