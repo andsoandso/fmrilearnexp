@@ -10,7 +10,7 @@ import numpy as np
 from sklearn.decomposition import PCA
 
 from fmrilearn.load import load_roifile
-from fmrilearn.analysis import eva
+from fmrilearn.analysis import fir
 
 from fmrilearnexp.base import Space
 from fmrilearnexp.base import DecomposeExp
@@ -39,7 +39,7 @@ else:
 # Setup exp
 # ---------------------------------------------------------------------------
 data = FH()
-spacetime = Space(PCA(6, whiten=True), eva, mode="decompose")
+spacetime = Space(PCA(6, whiten=True), fir, mode="decompose")
 exp = DecomposeExp(spacetime, data, window=11, nsig=3)
 
 # ---------------------------------------------------------------------------
@@ -47,5 +47,5 @@ exp = DecomposeExp(spacetime, data, window=11, nsig=3)
 # ---------------------------------------------------------------------------
 for n, roi in enumerate(rois):
     print("{0} ({1}/{2})".format(roi, n+1, len(rois)))   ## Progress marker
-    exp.run(basename, roi, cond, smooth=False, filtfile=filtfile)
+    exp.run(basename, roi, cond, smooth=False, filtfile=filtfile, event=True)
 
