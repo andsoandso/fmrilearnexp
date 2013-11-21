@@ -24,7 +24,7 @@ if len(sys.argv) == 4:
     _, rois = load_roifile(sys.argv[2])
     cond = sys.argv[3]
     filtfile = None
-elif len(sys.argv) == 4:
+elif len(sys.argv) == 5:
     basename = sys.argv[1]
     _, rois = load_roifile(sys.argv[2])
     cond = sys.argv[3]
@@ -36,12 +36,14 @@ else:
 # Setup exp
 # ---------------------------------------------------------------------------
 data = FH()
-spacetime = AverageTime(eva)
-exp = DecomposeFH(spacetime, data, window=11, nsig=3)
+spacetime = AverageTime(fir)
+exp = DecomposeExp(spacetime, data, window=11, nsig=3)
 
 # ---------------------------------------------------------------------------
 # And run each roi
 # ---------------------------------------------------------------------------
 for n, roi in enumerate(rois):
     print("{0} ({1}/{2})".format(roi, n+1, len(rois)))   ## Progress marker
-    exp.run(basename, roi, cond, smooth=False, filtfile=filtfile)
+    exp.run(basename, roi, cond, smooth=False, filtfile=filtfile, event=True)
+
+
