@@ -14,7 +14,7 @@ from fmrilearn.analysis import fir
 
 from fmrilearnexp.base import Space
 from fmrilearnexp.base import DecomposeExp
-from wheelerdata.load.butterfly import Butterfly
+from wheelerdata.load.redgreen import Redgreen 
 
 
 # ---------------------------------------------------------------------------
@@ -38,7 +38,7 @@ else:
 # ---------------------------------------------------------------------------
 # Setup exp
 # ---------------------------------------------------------------------------
-data = Butterfly()
+data = Redgreen()
 spacetime = Space(PCA(6, whiten=True), fir, mode="decompose")
 exp = DecomposeExp(spacetime, data, window=15, nsig=3)
 

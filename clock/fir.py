@@ -1,20 +1,17 @@
-"""PCA reduction for all voxels and trials.  Results saved to a series
+"""EVA reduction for all voxels and trials.  Results saved to a series
 of tables named like <name>_<roi>_<cond>.csv.
 
-usage: python ./pca_space.py name roifile cond [, filtfile]
+usage: python ./eva.py name roifile cond [, filtfile]
 """
-
 import sys, os
 import numpy as np
-
-from sklearn.decomposition import PCA
 
 from fmrilearn.load import load_roifile
 from fmrilearn.analysis import fir
 
-from fmrilearnexp.base import Space
+from fmrilearnexp.base import AverageTime
 from fmrilearnexp.base import DecomposeExp
-from wheelerdata.load.butterfly import Butterfly
+from wheelerdata.load.clock import Clock
 
 
 # ---------------------------------------------------------------------------
@@ -38,14 +35,15 @@ else:
 # ---------------------------------------------------------------------------
 # Setup exp
 # ---------------------------------------------------------------------------
-data = Butterfly()
-spacetime = Space(PCA(6, whiten=True), fir, mode="decompose")
+data = Clock()
+spacetime = AverageTime(fir)
 exp = DecomposeExp(spacetime, data, window=15, nsig=3)
 
 # ---------------------------------------------------------------------------
 # And run each roi
 # ---------------------------------------------------------------------------
 for n, roi in enumerate(rois):
-    print("{0} ({1}/{2})".format(roi, n+1, len(rois)))
+    print("{0} ({1}/{2})".format(roi, n+1, len(rois)))   ## Progress marker
     exp.run(basename, roi, cond, smooth=False, filtfile=filtfile, event=True)
+
 

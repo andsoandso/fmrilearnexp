@@ -40,7 +40,7 @@ else:
 # ---------------------------------------------------------------------------
 data = Clock()
 spacetime = Space(PCA(6, whiten=True), fir, mode="decompose")
-exp = DecomposeExp(spacetime, data, window=11, nsig=3)
+exp = DecomposeExp(spacetime, data, window=15, nsig=3)
 
 # ---------------------------------------------------------------------------
 # And run each roi
