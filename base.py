@@ -152,7 +152,6 @@ class DecomposeExp(object):
 
             if filtfile is not None:
                 X, targets = filterX(filtfile, X, targets)
-            
 
             Xcs, csnames = self.spacetime.fit_transform(
                     X, targets[cond], targets["trialcount"], 
@@ -491,7 +490,7 @@ class AverageTime(object):
         self.avgfn = avgfn
 
 
-    def fit_transform(self, X, y, trial_index, window):
+    def fit_transform(self, X, y, trial_index, window, tr):
         """Average X by trial based on y (and trial_index).
 
         Parameters
