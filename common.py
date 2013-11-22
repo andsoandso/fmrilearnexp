@@ -1,9 +1,35 @@
 """Misclanous utlity functions for these experiments."""
 import os
 import numpy as np
+
+from fmrilearn.load import load_roifile
 from fmrilearn.preprocess.data import checkX
 from fmrilearn.preprocess.split import by_labels
 from fmrilearn.preprocess.reshape import by_trial
+
+
+
+def process_exp_argv(argv):
+    """Process pos arguments for python programs with a invocation like:
+            
+            $ python ./script.py name data roifile cond [, filtfile]
+    """
+    if len(argv) == 4:
+        basename = argv[1]  ## name
+        dataname = argv[2]  ## data
+        _, rois = load_roifile(argv[3])  ## roifile
+        cond = argv[4]  ## cond
+        filtfile = None
+    elif len(argv) == 6:
+        basename = argv[1]
+        dataname = argv[2]
+        _, rois = load_roifile(argv[3])
+        cond = argv[4]
+        filtfile = argv[5]
+    else:
+        raise ValueError("Wrong number of arguments")
+
+    return basename, dataname, rois, cond, filtfile
 
 
 def get_roiname(roipath):    
