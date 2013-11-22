@@ -212,11 +212,10 @@ class Decompose(object):
         clabels = self.estimator.fit_predict(X.transpose())
         uclabels = sorted(np.unique(clabels))
         
-        # Average cluster examples, making Xc
+        # Average cluster examples, filling Xc
         Xc = np.zeros((nrow, len(uclabels)))         ## Init w/ 0
         for i, ucl in enumerate(uclabels):
-            clustermean = X[:,np.str(ucl) == uclabels].mean(1)
-            Xc[:,i] = clustermean  ## Select and avg
+            Xc[:,i] = X[:,ucl == clabels].mean(1)
 
         assert checkX(Xc)
         assert Xc.shape[0] == X.shape[0], ("After transform wrong row number")
