@@ -1,5 +1,5 @@
 """
-usage: python ./ward_space.py name data roifile cond [, filtfile]
+usage: python ./dbscan_space.py name data roifile cond [, filtfile]
 """
 
 import sys, os

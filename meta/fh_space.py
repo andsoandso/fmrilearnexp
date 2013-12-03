@@ -1,5 +1,5 @@
 """
-usage: python ./kmeans_space.py name data roifile cond [, filtfile]
+usage: python ./fh_space.py name data roifile cond [, filtfile]
 """
 
 import sys, os
@@ -7,7 +7,7 @@ import numpy as np
 
 from fmrilearn.analysis import fir
 
-from sklearn.cluster import KMeans
+from sklearn.decomposition import FactorAnalysis
 
 from fmrilearnexp.base import Space
 from fmrilearnexp.base import DecomposeExp
@@ -24,7 +24,7 @@ data = get_data(dataname)
 # ---------------------------------------------------------------------------
 # Setup exp
 # ---------------------------------------------------------------------------
-spacetime = Space(KMeans(5), fir, mode="cluster")
+spacetime = Space(FactorAnalysis(5), fir, mode="decompose")
 exp = DecomposeExp(spacetime, data, window=15, nsig=3)
 
 # ---------------------------------------------------------------------------
