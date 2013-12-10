@@ -14,6 +14,7 @@ from fmrilearn.preprocess.data import filterX
 from fmrilearn.preprocess.data import smooth as smoothfn
 from fmrilearn.preprocess.reshape import by_trial
 from fmrilearn.preprocess.split import by_labels
+from fmrilearn.preprocess.labels import unique_sorted_with_nan
 from fmrilearn.preprocess.labels import construct_targets
 from fmrilearn.preprocess.labels import construct_filter
 from fmrilearn.preprocess.labels import filter_targets
@@ -90,6 +91,7 @@ class DecomposeSimulation(object):
             
             # Name them,
             csnames = sorted(np.unique(targets["y"]))
+            csnames = unique_sorted_with_nan(csnames)
 
             # and write.
             for Xc, csname in zip(Xcs, csnames):
@@ -211,7 +213,8 @@ class Decompose(object):
 
         clabels = self.estimator.fit_predict(X.transpose())
         uclabels = sorted(np.unique(clabels))
-        
+        uclabels = unique_sorted_with_nan(uclabels)
+
         # Average cluster examples, filling Xc
         Xc = np.zeros((nrow, len(uclabels)))         ## Init w/ 0
         for i, ucl in enumerate(uclabels):
@@ -310,6 +313,7 @@ class Spacetime(Decompose):
         # Reshape by trials, rescale too
         Xtrial, feature_names = by_trial(X, trial_index, window, y)
         unique_fn = sorted(np.unique(feature_names))
+        unique_fn = unique_sorted_with_nan(unique_fn)
 
         scaler = MinMaxScaler(feature_range=(0, 1))
         Xtrial = scaler.fit_transform(Xtrial.astype(np.float))
@@ -366,6 +370,8 @@ class Voxel(Decompose):
 
         # Create Xcs
         csnames = sorted(np.unique(y))
+        csnames = unique_sorted_with_nan(csnames)
+
         for j in range(len(csnames)):
             Xcs.append(np.zeros([window, Xc.shape[1]]))
 
@@ -374,6 +380,7 @@ class Voxel(Decompose):
             xc = xc[:,np.newaxis]
             Xtrial, feature_names = by_trial(xc, trial_index, window, y)
             unique_fn = sorted(np.unique(feature_names))
+            unique_fn = unique_sorted_with_nan(unique_fn)
 
             # For the current comp j,
             # split up into Xtrials and
@@ -451,6 +458,7 @@ class Space(Decompose):
         
         Xtrial, feature_names = self.avgfn(X, y, trial_index, window, tr)
         unique_fn = sorted(np.unique(feature_names))
+        unique_fn = unique_sorted_with_nan(unique_fn)
 
         # Loop over unique_y not unique_fn as we want to
         # pull apart what was in the orginal y, 
@@ -523,6 +531,7 @@ class AverageTime(object):
         # Time averaged trials become features
         Xavg, feature_names = self.avgfn(X, y, trial_index, window, tr)
         unique_fn = sorted(np.unique(feature_names))
+        unique_fn = unique_sorted_with_nan(unique_fn)
 
         # Split by unique_y, put it all togther,
         for yi in unique_fn:
@@ -582,6 +591,7 @@ class Time(Decompose):
         Xtrials = []
         csnames = []
         unique_y = sorted(np.unique(y))
+        unique_y = unique_sorted_with_nan(unique_y)
 
         # Each feature by trials,
         for j in range(X.shape[1]):

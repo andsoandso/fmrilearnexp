@@ -24,7 +24,7 @@ data = get_data(dataname)
 # ---------------------------------------------------------------------------
 # Setup exp
 # ---------------------------------------------------------------------------
-spacetime = Space(PCA(6, whiten=True), fir, mode="decompose")
+spacetime = Space(PCA(5, whiten=True), fir, mode="decompose")
 exp = DecomposeExp(spacetime, data, window=15, nsig=3)
 
 # ---------------------------------------------------------------------------
