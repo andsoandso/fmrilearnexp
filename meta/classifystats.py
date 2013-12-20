@@ -53,6 +53,8 @@ parser.add_argument("-t", nargs="+",
         help="Targets, i.e. csv files to concastnate then classify")
 parser.add_argument("-o", nargs=1,
         help="The name of the file to *append* the classfier results to")
+parser.add_argument("--null", default=0, type=int, 
+        help="Classify and save NULL distributions")
 
 args = parser.parse_args()
 feature_index = range(*[int(i) for i in args.data.split(':')])
@@ -160,7 +162,7 @@ else:
         ## Ensures no data are missed during recode.
     for k, ui in enumerate(unindex):
         chunks[ui == index] += np.int(k + 1)   ## +1 to adj for -1 init
-    cv = LeavePLabelOut(chunks, p=3)
+    cv = LeavePLabelOut(chunks, p=1)
     # ----
 
     # Sane?
@@ -205,27 +207,26 @@ f.close()
 # ----
 # Do null runs?
 if args.null < 0:
-    raise ValueError("--null numt be 0 or greater")
+    raise ValueError("--null must be 0 or greater")
 
 null_accs = []
 if args.null > 0:
     print("\tRunning NULL classifcations ({0} iterations)".
             format(args.null))
-
-    ytrain_null = deepcopy(ytrain)
+    ynull = deepcopy(y)
     for i in range(args.null):
-        np.random.shuffle(ytrain_null)
+        np.random.shuffle(ynull)
+        accs = cross_val_score(clf, X, y=ynull, scoring="accuracy", cv=cv,
+                n_jobs=1, verbose=0,
+                fit_params=None, score_func=None)
 
-        clf.fit(Xtrain, ytrain_null)
-        ypredict_null = clf.predict(Xtest)
+        null_accs.append(np.mean(accs))
 
-        null_accs.append(accuracy_score(ytest, ypredict_null))
+    f = open("null_"+args.o[0], "a")
+    f.write("{0},{1},{2},{3}\n".format(    
+        np.round(np.mean(null_accs), decimals=3), 
+        np.round(np.std(null_accs), decimals=3), 
+        args.name))
+    f.close()
 
-f = open("null_"+args.o[0], "a")
-f.write("{0},{1},{2},{3}\n".format(    
-    np.round(np.mean(null_accs), decimals=3), 
-    np.round(np.std(null_accs), decimals=3), 
-    np.round(1.0/len(np.unique(ytrain_null)), decimals=3),
-    args.name))
-f.close()
 
