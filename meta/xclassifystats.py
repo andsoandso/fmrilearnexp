@@ -115,11 +115,11 @@ if args.null > 0:
 
         null_accs.append(accuracy_score(ytest, ypredict_null))
 
-f = open("null_"+args.o[0], "a")
-f.write("{0},{1},{2},{3}\n".format(    
-    np.round(np.mean(null_accs), decimals=3), 
-    np.round(np.std(null_accs), decimals=3), 
-    np.round(1.0/len(np.unique(ytrain_null)), decimals=3),
-    args.name))
-f.close()
+    f = open("null_"+args.o[0], "a")
+    f.write("{0},{1},{2},{3}\n".format(    
+        np.round(np.mean(null_accs), decimals=3), 
+        np.round(np.std(null_accs), decimals=3), 
+        np.round(1.0/len(np.unique(ytrain_null)), decimals=3),
+        args.name))
+    f.close()
 
