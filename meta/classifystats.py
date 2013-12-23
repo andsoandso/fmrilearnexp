@@ -39,8 +39,7 @@ from fmrilearn.preprocess.data import create_X_stats
 # ----
 parser = argparse.ArgumentParser(
         description="Run RFE using Linear SVMs on the supplied csv data")
-parser.add_argument("name", 
-        help="Name of this exp")
+parser.add_argument("name", help="Name of this exp")
 parser.add_argument("--data", default='0:5', type=str,
         help="Range of data cols 'min:max' Uses python-style slicing.")
 parser.add_argument("--labels", default=6, type=int, 
@@ -49,6 +48,8 @@ parser.add_argument("--index", default=7, type=int,
         help="Column number for cross_validation codes")
 parser.add_argument("--trial_tr", default=8, type=int,
         help="Column number for trial level TR indexing")
+parser.add_argument("--window", default='0:15', type=str,
+        help="Window to extract stats from (temporal centering)")
 parser.add_argument("-t", nargs="+", 
         help="Targets, i.e. csv files to concastnate then classify")
 parser.add_argument("-o", nargs=1,
@@ -58,6 +59,7 @@ parser.add_argument("--null", default=0, type=int,
 
 args = parser.parse_args()
 feature_index = range(*[int(i) for i in args.data.split(':')])
+window =  range(*[int(i) for i in args.window.split(':')])
 
 # ----
 # Load
@@ -66,8 +68,6 @@ feature_index = range(*[int(i) for i in args.data.split(':')])
 csvs = args.t
 for csvn in csvs:
     if not os.path.exists(csvn):
-        ## Yes neck beards I should open it 
-        ## instead of testing for existence....
         raise IOError("{0} does not exist".format(csvn))
 
 X, y, index, tTR = None, None, None, None
@@ -131,11 +131,11 @@ for ii, trial in enumerate(trials):
     mask = trial == trial_index
     x_trial = X[mask,:]
 
-    Xmax[ii,:] = np.argmax(x_trial, axis=0)
-    Xmin[ii,:] = np.argmin(x_trial, axis=0)
+    Xmax[ii,:] = np.argmax(x_trial[window,], axis=0)
+    Xmin[ii,:] = np.argmin(x_trial[window,], axis=0)
     Xdiff = Xmax - Xmin
-    Xmean[ii,:] = x_trial.mean()
-    Xvar[ii,:] = x_trial.var()
+    Xmean[ii,:] = x_trial[window,].mean(axis=0)
+    Xvar[ii,:] = x_trial[window,].var(axis=0)
 
     # Only need one label for each trial
     ystat.append(y[mask][0])
@@ -226,6 +226,7 @@ if args.null > 0:
     f.write("{0},{1},{2},{3}\n".format(    
         np.round(np.mean(null_accs), decimals=3), 
         np.round(np.std(null_accs), decimals=3), 
+        np.round(1.0/len(np.unique(ynull)), decimals=3),
         args.name))
     f.close()
 
