@@ -1,4 +1,4 @@
-"""usage: classifystats name -o results.txt --data 0:5 --labels 6 --index 7 --trial_tr 8 --trial_trs_max 15 -t csv1 csv2 [..., ]
+"""usage: see classifystats -h
 
     Note:
     ----

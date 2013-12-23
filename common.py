@@ -8,8 +8,6 @@ from copy import deepcopy
 from fmrilearn.preprocess.labels import create_y
 from fmrilearn.load import load_roifile
 from fmrilearn.preprocess.data import checkX
-from fmrilearn.preprocess.split import by_labels
-from fmrilearn.preprocess.reshape import by_trial
 
 
 def process_exp_argv(argv):
@@ -56,7 +54,7 @@ def sum_explained_variance(pcar):
     return np.round(np.sum(pcar.explained_variance_ratio_), decimals=2)
 
 
-def _create_X_y_xcs(csvs, data, labels_j, trial_tr_j):
+def _create_X_y_xcs(csvs, data, labels_j, trial_tr_j, window):
     # Check data exists
     feature_index = range(*[int(i) for i in data.split(':')])
     for csvn in csvs:
@@ -114,21 +112,20 @@ def _create_X_y_xcs(csvs, data, labels_j, trial_tr_j):
     for ii, trial in enumerate(trials):
         # Locate this trials data
         # Get time to peak/min
-        # and their diff
-        # also get trial means and variances
-        # finally reorg metadata.
+        # And their diff
+        # Finally get trial means and variances
         mask = trial == trial_index
         x_trial = X[mask,:]
 
-        Xmax[ii,:] = np.argmax(x_trial, axis=0)
-        Xmin[ii,:] = np.argmin(x_trial, axis=0)
+        Xmax[ii,:] = np.argmax(x_trial[window,], axis=0)
+        Xmin[ii,:] = np.argmin(x_trial[window,], axis=0)
         Xdiff = Xmax - Xmin
-        Xmean[ii,:] = x_trial.mean()
-        Xvar[ii,:] = x_trial.var()
-
+        Xmean[ii,:] = x_trial[window,].mean(axis=0)
+        Xvar[ii,:] = x_trial[window,].var(axis=0)
+           
         ystat.append(y[mask][0])
+        indexstat.append(index[mask][0])
 
-    # And rename
     X = np.hstack([Xmax, Xmin, Xdiff, Xmean, Xvar])
     y = np.asarray(ystat)
     index = np.asarray(indexstat)

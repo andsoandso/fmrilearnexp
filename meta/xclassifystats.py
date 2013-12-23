@@ -52,6 +52,8 @@ parser.add_argument("--train_trial_tr", default=8, type=int,
         help="Column number for trial level TR indexing")
 parser.add_argument("--train", nargs="+", 
         help="Targets, i.e. csv files to train on")
+parser.add_argument("--train_window", default='0:15', type=str,
+        help="Window to extract stats from (temporal centering)")
 
 # Test args
 parser.add_argument("--test_data", default='0:5', type=str,
@@ -62,6 +64,8 @@ parser.add_argument("--test_trial_tr", default=8, type=int,
         help="Column number for trial level TR indexing")
 parser.add_argument("--test", nargs="+", 
         help="Targets, i.e. csv files to test on")
+parser.add_argument("--test_window", default='0:15', type=str,
+        help="Window to extract stats from (temporal centering)")
 
 # Output args
 parser.add_argument("-o", nargs=1,
@@ -73,12 +77,15 @@ parser.add_argument("--null", default=0, type=int,
 
 args = parser.parse_args()
 
+train_window =  range(*[int(i) for i in args.train_window.split(':')])
+test_window =  range(*[int(i) for i in args.test_window.split(':')])
+
 # ----
 # Get and process the data
 Xtrain, ytrain = _create_X_y_xcs(args.train, args.train_data, 
-        args.train_labels, args.train_trial_tr)
+        args.train_labels, args.train_trial_tr, train_window)
 Xtest, ytest = _create_X_y_xcs(args.test, args.test_data, 
-        args.test_labels, args.test_trial_tr)
+        args.test_labels, args.test_trial_tr, test_window)
 
 # ----
 # Classify, score, and save.
