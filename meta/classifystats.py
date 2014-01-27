@@ -56,7 +56,8 @@ parser.add_argument("-o", nargs=1,
         help="The name of the file to *append* the classfier results to")
 parser.add_argument("--null", default=0, type=int, 
         help="Classify and save NULL distributions")
-
+parser.add_argument("--clf", default="GradientBoostingClassifier", type=str,
+        help="Select a classfier")
 args = parser.parse_args()
 feature_index = range(*[int(i) for i in args.data.split(':')])
 window =  range(*[int(i) for i in args.window.split(':')])
@@ -118,8 +119,8 @@ assert X.shape[0] == y.shape[0], "X and y length mismatch"
 trials = np.unique(trial_index)
 Xmax = np.zeros((trials.shape[0], X.shape[1]))
 Xmin = np.zeros_like(Xmax)
-Xmean = np.zeros_like(Xmax)
-Xvar = np.zeros_like(Xmax)
+#Xmean = np.zeros_like(Xmax)
+#Xvar = np.zeros_like(Xmax)
 
 ystat = []
 indexstat = []
@@ -134,18 +135,19 @@ for ii, trial in enumerate(trials):
     Xmax[ii,:] = np.argmax(x_trial[window,], axis=0)
     Xmin[ii,:] = np.argmin(x_trial[window,], axis=0)
     Xdiff = Xmax - Xmin
-    Xmean[ii,:] = x_trial[window,].mean(axis=0)
-    Xvar[ii,:] = x_trial[window,].var(axis=0)
+    #Xmean[ii,:] = x_trial[window,].mean(axis=0)
+    #Xvar[ii,:] = x_trial[window,].var(axis=0)
 
     # Only need one label for each trial
     ystat.append(y[mask][0])
     indexstat.append(index[mask][0])
 
 # And rename
-X = np.hstack([Xmax, Xmin, Xdiff, Xmean, Xvar])
+X = np.hstack([Xmax, Xmin, Xdiff])
+#X = np.hstack([Xmax, Xmin, Xdiff, Xmean, Xvar])
 y = np.asarray(ystat)
 index = np.asarray(indexstat)
-del Xmax, Xmin, Xdiff, Xmean, Xvar ## Cleanup ASAP
+del Xmax, Xmin, Xdiff#, Xmean, Xvar ## Cleanup ASAP
 
 # Still sane?
 assert checkX(X)
@@ -161,10 +163,11 @@ else:
     chunks = np.repeat(-1, index.shape[0])   
         ## Ensures no data are missed during recode.
     for k, ui in enumerate(unindex):
-        chunks[ui == index] += np.int(k + 1)   ## +1 to adj for -1 init
+        chunks[ui == index] += np.int(k + 1)   
+            ## +1 to adj for -1 init
     cv = LeavePLabelOut(chunks, p=1)
-    # ----
 
+    # ----
     # Sane?
     assert X.shape[0] == chunks.shape[0], "X and chunks length mismatch"       
     assert np.sum(chunks == -1) == 0, "Chunks is malformed"  
@@ -174,25 +177,17 @@ else:
 # ----
 
 # ----
-# Using RFE and linear SVM
-#clf = SVC(C=10, kernel="linear")
-#rfecv = RFECV(estimator=clf, step=1, cv=cv, scoring="accuracy")
-#rfecv.fit(X, y)
-#prediction = rfecv.predict(X)
-#print("Optimal feature number {0}".format(rfecv.n_features_))
-#print("Feature ranks {0}".format(rfecv.ranking_))
-#accs = accuracy_score(y, prediction)
-#print(classification_report(y, prediction))
-#print("Overall accuracy: {0}, Chance: {1}.".format(
-#    np.round(accuracy_score(y, prediction), decimals=2), 
-#    1.0/len(np.unique(y))))
-# ----
-
-# ----
 # Using GradientBoostingClassifier
-clf = GradientBoostingClassifier(n_estimators=100, learning_rate=1.0, 
-        max_depth=1, random_state=0)
-accs = cross_val_score(clf, X, y=y, scoring="accuracy", cv=cv,
+if args.clf == "RandomForestClassifier":
+    clf = RandomForestClassifier(n_estimators=500, max_features=None)
+elif args.clf == "GradientBoostingClassifier":   
+    clf = GradientBoostingClassifier(n_estimators=100, learning_rate=1.0, 
+            max_depth=1, random_state=0)
+else:
+    raise ValueError("--clf not understood")
+
+accs = cross_val_score(clf, X, y=y,
+        scoring="accuracy", cv=cv,
         n_jobs=1, verbose=0,
         fit_params=None, score_func=None)
 
