@@ -108,7 +108,7 @@ def _create_X_y_xcs(csvs, data, labels_j, trial_tr_j, window):
     Xmean = np.zeros_like(Xmax)
     Xvar = np.zeros_like(Xmax)
     ystat = []
-    indexstat = []
+    #indexstat = []
     for ii, trial in enumerate(trials):
         # Locate this trials data
         # Get time to peak/min
@@ -124,11 +124,11 @@ def _create_X_y_xcs(csvs, data, labels_j, trial_tr_j, window):
         Xvar[ii,:] = x_trial[window,].var(axis=0)
            
         ystat.append(y[mask][0])
-        indexstat.append(index[mask][0])
+        #indexstat.append(index[mask][0])
 
     X = np.hstack([Xmax, Xmin, Xdiff, Xmean, Xvar])
     y = np.asarray(ystat)
-    index = np.asarray(indexstat)
+    #index = np.asarray(indexstat)
     del Xmax, Xmin, Xdiff, Xmean, Xvar ## Cleanup ASAP
 
     # Still sane?
