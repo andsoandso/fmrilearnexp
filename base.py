@@ -19,7 +19,11 @@ from fmrilearn.preprocess.labels import construct_targets
 from fmrilearn.preprocess.labels import construct_filter
 from fmrilearn.preprocess.labels import filter_targets
 from fmrilearn.preprocess.labels import csv_to_targets
+from fmrilearn.preprocess.labels import targets_to_csv
+from fmrilearn.preprocess.labels import tr_pad_targets
+from fmrilearn.preprocess.labels import reprocess_targets
 
+    
 from wheelerdata.load.fh import FH
 from wheelerdata.load.simulated import make_bold
 
@@ -150,15 +154,18 @@ class DecomposeExp(object):
 
             # and data, preprocess too,
             X = load_nii(path, clean=True, sparse=False, smooth=smooth)
-            X = X[targets["TR"],:]
+            targets = tr_pad_targets(targets, "TR", X.shape[0], pad=np.nan)
 
+            targets_to_csv(targets, "{0}_targets_before.csv".format(basename))
             if filtfile is not None:
-                X, targets = filterX(filtfile, X, targets)
+                targets = reprocess_targets(filtfile, targets, np.nan)
+                assert targets["TR"].shape[0] == X.shape[0], "target reprocessing is broken"
+            targets_to_csv(targets, "{0}_targets_after.csv".format(basename))
 
             Xcs, csnames = self.spacetime.fit_transform(
                     X, targets[cond], targets["trialcount"], 
                     self.window, self.tr)
-            
+
             # Try to count components for the dataname
             try:
                 dataname = join_by_underscore(False, roiname, 
@@ -532,11 +539,17 @@ class AverageTime(object):
         Xavg, feature_names = self.avgfn(X, y, trial_index, window, tr)
         unique_fn = sorted(np.unique(feature_names))
         unique_fn = unique_sorted_with_nan(unique_fn)
-
+        
         # Split by unique_y, put it all togther,
+        Xavgsfull = []
         for yi in unique_fn:
+            Xavgsfull.append(Xavg[:, np.str(yi) == feature_names]) ## DEBUG, save all FIRs
             Xavgs.append(
                 Xavg[:, np.str(yi) == feature_names].mean(1)[:,np.newaxis])
+
+        # DEBUG - save all FIRs
+        for yi, Xa in zip(unique_fn, Xavgsfull):
+            np.savetxt("firs-{0}.txt".format(yi), Xa, fmt="%1.8f")
 
         return Xavgs, unique_fn
 
