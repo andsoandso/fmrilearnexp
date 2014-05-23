@@ -1,5 +1,5 @@
 """
-usage: python ./pca_space.py name data roifile cond [, filtfile]
+usage: python ./pca_space.py name data roifile cond tr [, filtfile]
 """
 
 import sys, os
@@ -18,14 +18,14 @@ from wheelerdata.load.meta import get_data
 # ---------------------------------------------------------------------------
 # Process argv
 # ---------------------------------------------------------------------------
-basename, dataname, rois, cond, filtfile = process_exp_argv(sys.argv)
+basename, dataname, rois, cond, tr, filtfile = process_exp_argv(sys.argv)
 data = get_data(dataname)
 
 # ---------------------------------------------------------------------------
 # Setup exp
 # ---------------------------------------------------------------------------
 spacetime = Space(PCA(5, whiten=True), fir, mode="decompose")
-exp = DecomposeExp(spacetime, data, window=15, nsig=3)
+exp = DecomposeExp(spacetime, data, window=15, nsig=3, tr=tr)
 
 # ---------------------------------------------------------------------------
 # And run each roi

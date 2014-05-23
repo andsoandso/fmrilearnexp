@@ -5,6 +5,8 @@ import numpy as np
 
 from sklearn.preprocessing import MinMaxScaler
 
+from simfMRI.noise import white
+
 from fmrilearn.load import load_meta
 from fmrilearn.load import load_nii
 from fmrilearn.load import load_roifile
@@ -14,7 +16,9 @@ from fmrilearn.preprocess.data import filterX
 from fmrilearn.preprocess.data import smooth as smoothfn
 from fmrilearn.preprocess.reshape import by_trial
 from fmrilearn.preprocess.split import by_labels
-from fmrilearn.preprocess.labels import unique_sorted_with_nan
+# from fmrilearn.preprocess.labels import unique_sorted_with_nan
+from fmrilearn.preprocess.labels import unique_nan
+from fmrilearn.preprocess.labels import sort_nanfirst
 from fmrilearn.preprocess.labels import construct_targets
 from fmrilearn.preprocess.labels import construct_filter
 from fmrilearn.preprocess.labels import filter_targets
@@ -23,16 +27,156 @@ from fmrilearn.preprocess.labels import targets_to_csv
 from fmrilearn.preprocess.labels import tr_pad_targets
 from fmrilearn.preprocess.labels import reprocess_targets
 
-    
 from wheelerdata.load.fh import FH
 from wheelerdata.load.simulated import make_bold
+from wheelerdata.load.reproduced import make_bold as make_bold_re
 
 from fmrilearnexp.common import get_roiname
 from fmrilearnexp.common import join_by_underscore
 
 
+class DecomposeExpReproduction(object):
+    def __init__(self, spacetime, data, window=11, nsig=3, tr=1.5):
+        super(DecomposeExpReproduction, self).__init__()
+
+        self.spacetime = spacetime
+        self.data = data
+        self.window = window
+        self.nsig = nsig
+        self.tr = tr
+        
+    def run(self, basename, cond, index, wheelerdata, cond_to_rt, 
+        smooth=False,
+        filtfile=None, TR=2, trname="TR", 
+        n_features=10, n_univariate=None, n_accumulator=None, n_decision=None, 
+        n_noise=None, drift_noise=False, step_noise=False, z_noise=False,
+        drift_noise_param=None, step_noise_param=None, z_noise_param=None,
+        noise_f=white, hrf_f=None, hrf_params=None, prng=None):       
+        """Reproduce the cond from the wheelerdata experiment
+        
+        Parameters
+        ---------
+        basename : str
+            The name for the Reproduced datafile, will be suffixed
+            by each cond and scode and .csv 
+            (i.e. `'{0}_{1}_{2}.csv'.format(basename, cond, scode)`).
+        cond : str
+            A condition name found in the wheelerdata objects metadata
+        index : str
+            A name of a trial index found in the wheelerdata object metadata
+        wheelerdata : object, instance of Wheelerdata
+            A Wheelerdata object
+        cond_to_rt: dict
+            A map of cond (key) to reaction time (item, (int, float))    
+        smooth : boolean, optional
+            Do bandpass filtering (default False)
+        filtfile : str, None
+            A name of json file designed for reprocessing Wheelerdata metadata
+        TR : float, int
+            The repitition time of the experiement
+        trname : str
+            The name of the index of TRs in the metadata
+        n_features : int
+            The number of features in total (other n_* arguements
+            must sum to this value
+        n_univariate : int
+            The number of univariate (boxcar) features
+        n_accumulator : int
+            The number of accumulator features
+        n_decision : int
+            The number of decision features
+        n_noise : int
+            The number of noise features
+        drift_noise : boolean, optional
+            Add noise to the drift rate of the accumulator features
+        step_noise : boolean, optional
+            Add Noise to each step accumulator features
+        z_noise : boolean, optional
+            Add noise to the start value of accumulator features
+        drift_noise_param : None or dict, optional
+            Parameters for drift_noise which is drawn from a
+            Gaussian distribution. None defaults to: 
+            `{"loc": 0, "scale" : 0.5}`
+        step_noise_param : None or dict, optional
+            Parameters for step_noise which is drawn from a 
+            Gaussian distribution. None defaults to:
+            `{"loc" : 0, "scale" : 0.2, "size" : 1}`
+        z_noise_param : None or dict, optional
+            Parameters for z_noise which is drawn from the uniform
+            distribution. None defaults to:
+            `{"low" : 0.01, "high" : 0.5, "size" : 1}`
+        noise_f : function, optional
+            Produces noise, must have signatures like `noise, prng = f(N, prng)`
+        hrf_f : function, optional
+            Returns a haemodynamic response, signature hrf_f(**hrf_params)
+        hrf_params : dict
+            Keyword parameters for hrf_f
+        prng : None or RandomState object
+            Allows for independent random draws, used for all 
+            random sampling
+        """
+
+        mode = 'w'
+        header = True
+
+        # All *s lists correspond to wheelerdata.scodes
+        scodes = self.data.scodes
+        Xs, ys, yindices = make_bold_re(
+                cond, index, self.data,
+                cond_to_rt,
+                filtfile=filtfile, 
+                trname=trname,
+                noise_f=noise_f, 
+                hrf_f=hrf_f, 
+                hrf_params=hrf_params, 
+                n_features=n_features, 
+                n_univariate=n_univariate, 
+                n_accumulator=n_accumulator, 
+                n_decision=n_decision, 
+                n_noise=n_noise, 
+                drift_noise=drift_noise, 
+                step_noise=step_noise, 
+                z_noise=z_noise,
+                drift_noise_param=drift_noise_param, 
+                step_noise_param=step_noise_param, 
+                z_noise_param=z_noise_param,
+                prng=prng)
+        
+        for scode, X, y, yindex in zip(scodes, Xs, ys, yindices):
+            if smooth:
+                X = smoothfn(X, tr=1.5, ub=0.10, lb=0.001)
+            
+            # Normalize
+            norm = MinMaxScaler((0,1))
+            X = norm.fit_transform(X.astype(np.float))
+            
+            Xcs, csnames = self.spacetime.fit_transform(
+                    X, y, yindex, self.window, self.tr)
+
+            # Name them,
+            csnames = unique_nan(y)
+            csnames = sort_nanfirst(csnames)
+
+            # and write.
+            for Xc, csname in zip(Xcs, csnames):
+                save_tcdf(
+                        name=join_by_underscore(True, basename, csname), 
+                        X=Xc, 
+                        cond=csname,
+                        dataname=join_by_underscore(False, 
+                                os.path.split(basename)[-1], scode),
+                        index='auto',
+                        header=header, 
+                        mode=mode,
+                        float_format="%.{0}f".format(self.nsig))
+            
+            # After s 1 go to append mode
+            mode = 'a'
+            header = False
+
+
 class DecomposeSimulation(object):
-    """A simulation of the facehouse decomposition experiment"""
+    """A Monte Carlo simulation of the facehouse decomposition experiment"""
     def __init__(self, spacetime, window=11, nsig=3):
         super(DecomposeSimulation, self).__init__()
         
@@ -40,8 +184,6 @@ class DecomposeSimulation(object):
         self.window = window
         self.nsig = nsig
 
-        # Create a random seed for repproducublity.
-        # Need to mod make_bold to accept it
 
     def run(self, basename, smooth=False, filtfile=None, 
         n=None, tr=None, n_rt=None, n_trials_per_cond=None,
@@ -87,15 +229,19 @@ class DecomposeSimulation(object):
                 X, targets = filterX(filtfile, X, targets)
             if smooth:
                 X = smoothfn(X, tr=1.5, ub=0.10, lb=0.001)
-
+            
+            # Normalize
+            norm = MinMaxScaler((0,1))
+            X = norm.fit_transform(X.astype(np.float))
+            
             # finally decompose.
             Xcs, csnames = self.spacetime.fit_transform(
                     X, targets["y"], targets["trial_index"], 
                     self.window)
             
             # Name them,
-            csnames = sorted(np.unique(targets["y"]))
-            csnames = unique_sorted_with_nan(csnames)
+            csnames = unique_nan(y)
+            csnames = sort_nanfirst(csnames)
 
             # and write.
             for Xc, csname in zip(Xcs, csnames):
@@ -156,12 +302,16 @@ class DecomposeExp(object):
             X = load_nii(path, clean=True, sparse=False, smooth=smooth)
             targets = tr_pad_targets(targets, "TR", X.shape[0], pad=np.nan)
 
-            targets_to_csv(targets, "{0}_targets_before.csv".format(basename))
+            #targets_to_csv(targets, "{0}_targets_before.csv".format(basename))
             if filtfile is not None:
                 targets = reprocess_targets(filtfile, targets, np.nan)
                 assert targets["TR"].shape[0] == X.shape[0], "target reprocessing is broken"
-            targets_to_csv(targets, "{0}_targets_after.csv".format(basename))
-
+            #targets_to_csv(targets, "{0}_targets_after.csv".format(basename))
+            
+            # Normalize
+            norm = MinMaxScaler((0,1))
+            X = norm.fit_transform(X.astype(np.float))
+            
             Xcs, csnames = self.spacetime.fit_transform(
                     X, targets[cond], targets["trialcount"], 
                     self.window, self.tr)
@@ -174,24 +324,37 @@ class DecomposeExp(object):
                 dataname = join_by_underscore(False, roiname)
 
             # and write.
+            known = []
             for Xc, csname in zip(Xcs, csnames):
-                save_tcdf(
-                        name=join_by_underscore(True, table, csname), 
-                        X=Xc, 
-                        cond=csname,
-                        dataname=dataname,
-                        index='auto',
-                        header=header, 
-                        mode=mode,
-                        float_format="%.{0}f".format(self.nsig))
+                if not csname in known:
+                    save_tcdf(
+                            name=join_by_underscore(True, table, csname), 
+                            X=Xc, 
+                            cond=csname,
+                            dataname=dataname,
+                            index='auto',
+                            header=header, 
+                            mode=mode,
+                            float_format="%.{0}f".format(self.nsig))
+                    known.append(csname)
+                else:
+                    save_tcdf(
+                            name=join_by_underscore(True, table, csname), 
+                            X=Xc, 
+                            cond=csname,
+                            dataname=dataname,
+                            index='auto',
+                            header=False, 
+                            mode='a',
+                            float_format="%.{0}f".format(self.nsig))
             roicount += 1
-
-
+        
+        
 class Decompose(object):
     """A template for decomposition objects.
 
     The only public method should be `fit_transform` which
-    has the a signture like:
+    has the a signature like:
 
         fit_transform(self, X, y, trial_index, window)
     """
@@ -219,8 +382,10 @@ class Decompose(object):
         nrow = X.shape[0]
 
         clabels = self.estimator.fit_predict(X.transpose())
-        uclabels = sorted(np.unique(clabels))
-        uclabels = unique_sorted_with_nan(uclabels)
+        uclabels = unique_nan(clabels)
+        uclabels = sort_nanfirst(uclabels)
+        # uclabels = sorted(np.unique(clabels))
+        # uclabels = unique_sorted_with_nan(uclabels)
 
         # Average cluster examples, filling Xc
         Xc = np.zeros((nrow, len(uclabels)))         ## Init w/ 0
@@ -267,6 +432,71 @@ class Decompose(object):
         raise NotImplementedError("Subclass `Decompose` then implement this")
 
 
+class Trialtime(Decompose):
+    """Decompose across voxels separately for each trial"""
+    
+    def __init__(self, estimator, mode='decompose'):
+        super(Trialtime, self).__init__(estimator, mode)        
+    
+    def fit_transform(self, X, y, trial_index, window, tr):
+        Xcs = []
+        ycs = []
+        uti = unique_nan(trial_index)
+        uti = uti[np.logical_not(np.isnan(uti))]
+        
+        for n, ti in enumerate(uti):
+            # Skip last trial to prevent padding overflow
+            if n+1 == len(uti):
+                break
+            
+            # Locate trial and either 
+            # extend l to window, if needed
+            # or shorten each trial to window, if needed
+            mask = trial_index == ti
+            l = np.sum(mask)
+            if l < window:
+                i = 1
+                for j, ma in enumerate(mask):
+                    if ma:
+                        i += 1
+                    if i > l:
+                        pad = window - l + 1
+                        mask[j:(j + pad)] = True
+                        break
+            elif window < l:
+                i = 0
+                for j, ma in enumerate(mask):
+                    if ma:
+                        i += 1
+                    if i > window:
+                       mask[j] = False 
+                        
+            Xtrial = X[mask,:]
+            from simfMRI.norm import zscore
+            Xtrial = zscore(Xtrial)
+            
+            assert Xtrial.shape == (window, X.shape[1]), "Xtrial wrong shape"
+            
+            if self.mode == 'decompose':
+                Xcs.append(self.estimator.fit_transform(Xtrial))
+            elif self.mode == 'cluster':
+                # Useluster labels to create average timecourses
+                clabels = self.estimator.fit_predict(Xtrial.transpose())
+                uclabels = unique_nan(clabels)
+                uclabels = sort_nanfirst(uclabels)
+                
+                Xc = np.zeros((Xtrial.shape[0], len(uclabels))) ## Init w/ 0
+                for i, ucl in enumerate(uclabels):
+                    Xc[:,i] = Xtrial[:,ucl == clabels].mean(1)
+                Xcs.append(Xc)
+            
+            ycs.append(y[trial_index == ti][0])
+        
+        assert len(Xcs) == len(ycs), ("Xcs and ycs mismatch")
+        
+        return Xcs, np.asarray(ycs) 
+        
+        
 class Spacetime(Decompose):
     """Decompose trials in spacetime.
 
@@ -319,8 +549,10 @@ class Spacetime(Decompose):
 
         # Reshape by trials, rescale too
         Xtrial, feature_names = by_trial(X, trial_index, window, y)
-        unique_fn = sorted(np.unique(feature_names))
-        unique_fn = unique_sorted_with_nan(unique_fn)
+        unique_fn = unique_nan(feature_names)
+        unique_fn = sort_nanfirst(unique_fn)
+        # unique_fn = sorted(np.unique(feature_names))
+        # unique_fn = unique_sorted_with_nan(unique_fn)
 
         scaler = MinMaxScaler(feature_range=(0, 1))
         Xtrial = scaler.fit_transform(Xtrial.astype(np.float))
@@ -376,8 +608,10 @@ class Voxel(Decompose):
             raise ValueError("mode not understood.")
 
         # Create Xcs
-        csnames = sorted(np.unique(y))
-        csnames = unique_sorted_with_nan(csnames)
+        csnames = unique_nan(y)
+        csnames = sort_nanfirst(csnames)        
+        # csnames = sorted(np.unique(y))
+        # csnames = unique_sorted_with_nan(csnames)
 
         for j in range(len(csnames)):
             Xcs.append(np.zeros([window, Xc.shape[1]]))
@@ -386,8 +620,10 @@ class Voxel(Decompose):
             xc = Xc[:,j]
             xc = xc[:,np.newaxis]
             Xtrial, feature_names = by_trial(xc, trial_index, window, y)
-            unique_fn = sorted(np.unique(feature_names))
-            unique_fn = unique_sorted_with_nan(unique_fn)
+            unique_fn = unique_nan(feature_names)
+            unique_fn = sort_nanfirst(unique_fn)
+            # unique_fn = sorted(np.unique(feature_names))
+            # unique_fn = unique_sorted_with_nan(unique_fn)
 
             # For the current comp j,
             # split up into Xtrials and
@@ -464,16 +700,12 @@ class Space(Decompose):
         csnames = []
         
         Xtrial, feature_names = self.avgfn(X, y, trial_index, window, tr)
-        unique_fn = sorted(np.unique(feature_names))
-        unique_fn = unique_sorted_with_nan(unique_fn)
+        unique_fn = sort_nanfirst(unique_nan(feature_names))
 
-        # Loop over unique_y not unique_fn as we want to
-        # pull apart what was in the orginal y, 
-        # not anything that unique_fn may contain.
-        # Xtrials.append(Xtrial)
+        # Split up by feature_names
         for yi in unique_fn:
-            Xtrials.append(Xtrial[:, np.str(yi) == feature_names])
-
+            Xtrials.append(Xtrial[:, feature_names == yi])
+                
         # and decompose.
         if self.mode == 'decompose':
             Xcs = [self._ft(Xt) for Xt in Xtrials]
@@ -537,19 +769,13 @@ class AverageTime(object):
 
         # Time averaged trials become features
         Xavg, feature_names = self.avgfn(X, y, trial_index, window, tr)
-        unique_fn = sorted(np.unique(feature_names))
-        unique_fn = unique_sorted_with_nan(unique_fn)
-        
-        # Split by unique_y, put it all togther,
+        unique_fn = sort_nanfirst(unique_nan(feature_names))
+
+        # Split up by feature_names
         Xavgsfull = []
         for yi in unique_fn:
-            Xavgsfull.append(Xavg[:, np.str(yi) == feature_names]) ## DEBUG, save all FIRs
             Xavgs.append(
-                Xavg[:, np.str(yi) == feature_names].mean(1)[:,np.newaxis])
-
-        # DEBUG - save all FIRs
-        for yi, Xa in zip(unique_fn, Xavgsfull):
-            np.savetxt("firs-{0}.txt".format(yi), Xa, fmt="%1.8f")
+                Xavg[:, feature_names == yi].mean(1)[:,np.newaxis])
 
         return Xavgs, unique_fn
 
@@ -603,8 +829,10 @@ class Time(Decompose):
 
         Xtrials = []
         csnames = []
-        unique_y = sorted(np.unique(y))
-        unique_y = unique_sorted_with_nan(unique_y)
+        unique_y = unique_nan(y)
+        unique_y = sort_nanfirst(unique_y)
+        # unique_y = sorted(np.unique(y))
+        # unique_y = unique_sorted_with_nan(unique_y)
 
         # Each feature by trials,
         for j in range(X.shape[1]):
