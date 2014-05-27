@@ -430,7 +430,7 @@ class Decompose(object):
 
 
     def fit_transform(self, X, y, trial_index, window):
-        raise NotImplementedError("Subclass `Decompose` then implement this")
+        raise NotImplementedError("Subclass `Decompose` and implement")
 
 
 class Timecourse(object):
@@ -455,9 +455,10 @@ class Timecourse(object):
         else:
             raise ValueError("mode not understood.")
 
-        checkX(Xc)
+        unique_y = sort_nanfirst(unique_nan(y))        
+        Xcs = [Xc[uy == unique_y,:] for uy in unique_y]        
         
-        return [Xc, ], [y, ]
+        return Xcs, unique_y
 
 
 class Trialtime(Decompose):
@@ -525,83 +526,6 @@ class Trialtime(Decompose):
         return Xcs, np.asarray(ycs) 
         
         
-class Spacetime(Decompose):
-    """Decompose trials in spacetime.
-
-    Parameters
-    ----------
-    estimator : a sklearn estimator object
-        Must implement fit_transform (if in mode='decompose') or 
-        fit_predict (if mode='cluster')
-
-    mode : str ('decompose' by default)
-        Decompose or cluster X?
-    """
-    
-
-    def __init__(self, estimator, mode='decompose'):
-        super(Spacetime, self).__init__(estimator, mode)
-
-
-    def fit_transform(self, X, y, trial_index, window):
-        """Converts X into Xtrial form (where the features are  individual
-        trials (n_trials, window)) and decomposes  that matrix, possibly
-        several times depending on y.
-    
-        Parameters
-        ----------
-        X : 2D array-like (n_sample, n_feature)
-            The data to decompose
-
-        y : 1D array, None by default
-            Sample labels for the data
-
-        trial_index : 1D array (n_sample, )
-            Each unique entry should match a trial.
-
-        window : int 
-            Trial length
-
-        Return
-        ------
-        Xcs : a list of 2D arrays (n_sample, n_components)
-            The components for each unique y.
-
-        csnames : 1D array
-            The names of the components matrices
-        """
-
-        Xtrials = []
-        Xcs = []
-        csnames = []
-
-        # Reshape by trials, rescale too
-        Xtrial, feature_names = by_trial(X, trial_index, window, y)
-        unique_fn = unique_nan(feature_names)
-        unique_fn = sort_nanfirst(unique_fn)
-        # unique_fn = sorted(np.unique(feature_names))
-        # unique_fn = unique_sorted_with_nan(unique_fn)
-
-        scaler = MinMaxScaler(feature_range=(0, 1))
-        Xtrial = scaler.fit_transform(Xtrial.astype(np.float))
-
-        # and split by unique_y
-        Xlabels, _ = by_labels(X=Xtrial.transpose(), y=feature_names)
-
-        # put all that together
-        Xtrials.extend([Xl.transpose() for Xl in Xlabels])
-
-        # and decompose.
-        if self.mode == 'decompose':
-            Xcs = [self._ft(Xt) for Xt in Xtrials]
-        elif self.mode == 'cluster':
-            Xcs = [self._fp(Xt) for Xt in Xtrials]
-        else:
-            raise ValueError("mode not understood.")
-
-        return Xcs, 
-
-
 class Voxel(Decompose):
     """Decompose voxels, then break into trials.
     
@@ -625,9 +549,6 @@ class Voxel(Decompose):
         Xcs = []
         csnames = []
 
-        scaler = MinMaxScaler(feature_range=(0, 1))
-        X = scaler.fit_transform(X.astype(np.float))
-        
         if self.mode == 'decompose':
             Xc = self._ft(X)
         elif self.mode == 'cluster':
@@ -745,21 +666,11 @@ class Space(Decompose):
         return Xcs, unique_fn
         
 
-class AverageTime(object):
-    """Average trials. 
+class AverageTimecourse(Decompose):
+    """Average timecourse and decompose that."""
 
-    Parameters
-    ----------
-    Requires an average function with a signature like: 
-
-    Xtrial, feature_names = avg(X, y, trial_index, window, norm=True)
-
-    Where the Xtrial matrix is shaped as (window, n_trial * n_unique_y).
-    See  `fmrilearn.analysis.eva` for an example.
-    """
-
-    def __init__(self, avgfn):
-        super(AverageTime, self).__init__()
+    def __init__(self, estimator, mode="decompose"):
+        super(AverageTimecourse, self).__init__(estimator, mode)
 
         self.avgfn = avgfn
 
@@ -775,132 +686,29 @@ class AverageTime(object):
         y : 1D array, None by default
             Sample labels for the data
 
-        trial_index : 1D array (n_sample, )
-            Each unique entry should match a trial.
+        trial_index : Dummy
 
-        window : int 
-            Trial length
-
-        norm : boolean, True by default
-            Norm Xtrial feature level std dev
-
-        Return
-        ------
-        Xavgs : a list of 2D arrays (n_sample, 1)
-            The averaged trials for each unique y.
-
-        avgames : 1D array
-            The names of the components matrices"""
-
-        Xavgs = []
-        avgnames = []
-
-        # Time averaged trials become features
-        Xavg, feature_names = self.avgfn(X, y, trial_index, window, tr)
-        unique_fn = sort_nanfirst(unique_nan(feature_names))
-
-        # Split up by feature_names
-        Xavgsfull = []
-        for yi in unique_fn:
-            Xavgs.append(
-                Xavg[:, feature_names == yi].mean(1)[:,np.newaxis])
-
-        return Xavgs, unique_fn
-
-
-class Time(Decompose):
-    """Decompose trial in time.
-
-    Parameters
-    ----------
-    estimator : a sklearn estimator object
-        Must implement fit_transform (if in mode='decompose') or 
-        fit_predict (if mode='cluster')
-
-    mode : str ('decompose' by default)
-        Decompose or cluster X?
-    """
-
-    def __init__(self, estimator, mode="decompose"):
-        super(Time, self).__init__(estimator, mode)
+        window : Dumy
         
-
-    def fit_transform(self, X, y, trial_index, window):
-        """Converts X into Xtrial for each feature and decomposes 
-        each matrix, possibly several times depending on y.
-
-        Parameters
-        ----------
-        X : 2D array-like (n_sample, n_feature)
-            The data to decompose
-
-        y : 1D array, None by default
-            Sample labels for the data
-
-        trial_index : 1D array (n_sample, )
-            Each unique entry should match a trial.
-
-        window : int 
-            Trial length
-
-        norm : boolean, True by default
-            Norm Xtrial feature level std dev
+        tr: Dumy
 
         Return
         ------
-        Xcs : a list of 2D arrays (n_sample, n_components)
-            The components for each unique y.
+        Xcs : TODO
 
-        csnames : 1D array
-            The names of the components matrices
+        ycs : TODO
         """
 
-        Xtrials = []
-        csnames = []
-        unique_y = unique_nan(y)
-        unique_y = sort_nanfirst(unique_y)
-        # unique_y = sorted(np.unique(y))
-        # unique_y = unique_sorted_with_nan(unique_y)
+        Xa = X.mean(1)[:,np.newaxis]
+        
+        if self.mode == 'decompose':
+            Xc = self._ft(Xa)
+        elif self.mode == 'cluster':
+            Xc = self._fp(Xa)
+        else:
+            raise ValueError("mode not understood.")
+        
+        unique_y = sort_nanfirst(unique_nan(y))        
+        Xcs = [Xc[uy == unique_y,:] for uy in unique_y]
 
-        # Each feature by trials,
-        for j in range(X.shape[1]):
-            xj = X[:,j][:,np.newaxis]  ## Need 2D
-
-            Xtrial, feature_names = by_trial(xj, trial_index, window, y)
-            scaler = MinMaxScaler(feature_range=(0, 1))
-            Xtrial = scaler.fit_transform(Xtrial.astype(np.float))
-            
-            # then by cond,
-            Xlabels, _ = by_labels(X=Xtrial.transpose(), y=feature_names)
-            
-            # put all that together,
-            Xtrials.extend([Xl.transpose() for Xl in Xlabels])
-
-            # names too.
-            csnames.extend([join_by_underscore(False, uy, j) for 
-                    uy in unique_y])
-
-        # And decompose after making 
-        # sure there is enough self.data.
-        Xcs = []
-        bignames = []
-        for Xt, csname in zip(Xtrials, csnames):
-            # If no n_components always pass
-            try: 
-                nc = self.estimator.n_components
-            except AttributeError:
-                nc = X.shape[1] - 1  
-
-            if Xt.shape[1] > nc:
-                # and decompose.
-                if self.mode == 'decompose':
-                    Xcs.append(self._ft(Xt))
-                elif self.mode == 'cluster':
-                    Xcs.append(self._fp(Xt))
-                else:
-                    raise ValueError("mode not understood.")
-
-                bignames.append(csname)
-
-        return Xcs, bignames
-
+        return Xcs, unique_y
