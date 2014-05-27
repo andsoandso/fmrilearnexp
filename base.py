@@ -31,8 +31,8 @@ from wheelerdata.load.fh import FH
 from wheelerdata.load.simulated import make_bold
 from wheelerdata.load.reproduced import make_bold as make_bold_re
 
-from fmrilearnexp.common import get_roiname
-from fmrilearnexp.common import join_by_underscore
+from wheelerexp.common import get_roiname
+from wheelerexp.common import join_by_underscore
 
 
 class DecomposeExpReproduction(object):

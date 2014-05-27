@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
-from fmrilearnexp.common import extract_trial_features
-from fmrilearnexp.common import load_dimreduce_data_fromcl
+from wheelerexp.common import extract_trial_features
+from wheelerexp.common import load_dimreduce_data_fromcl
 from fmrilearn.preprocess.labels import create_y
 
 

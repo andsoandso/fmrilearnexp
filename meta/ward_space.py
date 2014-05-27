@@ -11,8 +11,8 @@ from fmrilearn.load import load_roifile
 from fmrilearn.analysis import fir
 
 from sklearn.cluster import Ward
-from fmrilearnexp.base import Space
-from fmrilearnexp.base import DecomposeExp
+from wheelerexp.base import Space
+from wheelerexp.base import DecomposeExp
 from wheelerdata.load.meta import get_data
 
 parser = argparse.ArgumentParser(

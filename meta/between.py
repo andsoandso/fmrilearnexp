@@ -12,9 +12,9 @@ from sklearn.cross_validation import permutation_test_score
 from fmrilearn.preprocess.data import checkX
 from fmrilearn.preprocess.labels import create_y
 
-from fmrilearnexp.common import extract_trial_features 
-from fmrilearnexp.common import load_dimreduce_data_fromcl
-from fmrilearnexp.common import extract_trial_features 
+from wheelerexp.common import extract_trial_features 
+from wheelerexp.common import load_dimreduce_data_fromcl
+from wheelerexp.common import extract_trial_features 
 
 # =====
 # Process the args, load and concatenate the data, do any preprocessing and 

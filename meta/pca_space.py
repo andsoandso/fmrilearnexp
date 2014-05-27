@@ -9,9 +9,9 @@ from fmrilearn.analysis import fir
 
 from sklearn.decomposition import PCA
 
-from fmrilearnexp.base import Space
-from fmrilearnexp.base import DecomposeExp
-from fmrilearnexp.common import process_exp_argv
+from wheelerexp.base import Space
+from wheelerexp.base import DecomposeExp
+from wheelerexp.common import process_exp_argv
 
 from wheelerdata.load.meta import get_data
 

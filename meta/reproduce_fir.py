@@ -10,9 +10,9 @@ from simfMRI.noise import white
 from fmrilearn.analysis import fir
 from wheelerdata.load.meta import get_data
 
-from fmrilearnexp.base import AverageTime
-from fmrilearnexp.base import DecomposeExpReproduction
-from fmrilearnexp.common import process_exp_argv
+from wheelerexp.base import AverageTime
+from wheelerexp.base import DecomposeExpReproduction
+from wheelerexp.common import process_exp_argv
 
 
 # ---------------------------------------------------------------------------

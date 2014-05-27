@@ -9,8 +9,8 @@ import argparse
 # from fmrilearn.analysis import fir
 from fmrilearn.load import load_roifile
 from sklearn.cluster import KMeans
-from fmrilearnexp.base import Trialtime
-from fmrilearnexp.base import DecomposeExp
+from wheelerexp.base import Trialtime
+from wheelerexp.base import DecomposeExp
 from wheelerdata.load.meta import get_data
 
 parser = argparse.ArgumentParser(

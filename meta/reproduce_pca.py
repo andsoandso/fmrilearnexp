@@ -12,8 +12,8 @@ from simfMRI.noise import white
 from wheelerdata.load.meta import get_data
 
 from fmrilearn.analysis import fir
-from fmrilearnexp.base import Space
-from fmrilearnexp.base import DecomposeExpReproduction
+from wheelerexp.base import Space
+from wheelerexp.base import DecomposeExpReproduction
 
 
 

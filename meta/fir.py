@@ -6,9 +6,9 @@ import numpy as np
 
 from fmrilearn.analysis import fir
 
-from fmrilearnexp.base import AverageTime
-from fmrilearnexp.base import DecomposeExp
-from fmrilearnexp.common import process_exp_argv
+from wheelerexp.base import AverageTime
+from wheelerexp.base import DecomposeExp
+from wheelerexp.common import process_exp_argv
 
 from wheelerdata.load.meta import get_data
 
