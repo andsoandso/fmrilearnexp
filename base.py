@@ -434,7 +434,7 @@ class Decompose(object):
 
 
 class Timecourse(object):
-    """Decompose full voxel timecourses, return the reduced."""
+    """Decompose full voxel timecourses."""
      
     def __init__(self, estimator, mode):        
         self.mode = mode
@@ -462,7 +462,7 @@ class Timecourse(object):
 
 
 class Trialtime(Decompose):
-    """Decompose across voxels separately for each trial"""
+    """Decompose each trial across voxels."""
     
     def __init__(self, estimator, mode='decompose'):
         super(Trialtime, self).__init__(estimator, mode)        
@@ -525,88 +525,10 @@ class Trialtime(Decompose):
         
         return Xcs, np.asarray(ycs) 
         
-        
-class Voxel(Decompose):
-    """Decompose voxels, then break into trials.
-    
-    Completely overides Spacetime.run()
-
-    Parameters
-    ----------
-    estimator : a sklearn estimator object
-        Must implement fit_transform (if in mode='decompose') or 
-        fit_predict (if mode='cluster')
-
-    mode : str ('decompose' by default)
-        Decompose or cluster X?
-    """
-
-    def __init__(self, estimator, mode="decompose"):
-        super(Voxel, self).__init__(estimator, mode)
-
-
-    def fit_transform(self, X, y, trial_index, window):
-        Xcs = []
-        csnames = []
-
-        if self.mode == 'decompose':
-            Xc = self._ft(X)
-        elif self.mode == 'cluster':
-            Xc = self._fp(X)
-        else:
-            raise ValueError("mode not understood.")
-
-        # Create Xcs
-        csnames = unique_nan(y)
-        csnames = sort_nanfirst(csnames)        
-        # csnames = sorted(np.unique(y))
-        # csnames = unique_sorted_with_nan(csnames)
-
-        for j in range(len(csnames)):
-            Xcs.append(np.zeros([window, Xc.shape[1]]))
-
-        for j in range(Xc.shape[1]):
-            xc = Xc[:,j]
-            xc = xc[:,np.newaxis]
-            Xtrial, feature_names = by_trial(xc, trial_index, window, y)
-            unique_fn = unique_nan(feature_names)
-            unique_fn = sort_nanfirst(unique_fn)
-            # unique_fn = sorted(np.unique(feature_names))
-            # unique_fn = unique_sorted_with_nan(unique_fn)
-
-            # For the current comp j,
-            # split up into Xtrials and
-            # average each
-            Xlabels, _ = by_labels(X=Xtrial.transpose(), y=feature_names)
-
-            Xcs[0][:,j] = Xtrial.mean(1)    
-            for i, xl in enumerate(Xlabels):
-                Xcs[i+1][:,j] = xl.transpose().mean(1)
-        
-        return Xcs, csnames
-
 
 class Space(Decompose):
-    """Decompose trials in space.
-
-    estimator : a sklearn estimator object
-        Must implement fit_transform (if in mode='decompose') or 
-        fit_predict (if mode='cluster')
-
-    avgfn : an averaging fn (see Note)
-
-    mode : str ('decompose' by default)
-        Decompose or cluster X?
-
-    Note
-    ----
-    Requires an average function with a signature like: 
-
-        Xtrial, feature_names = avg(X, y, trial_index, window, norm=True)
-
-    Where the Xtrial matrix is shaped as (window, n_trial * n_unique_y). 
-    See  `fmrilearn.analysis.eva` for an example.
-    """
+    """Calculate average trials by cond for each voxel, and reduce
+    across voxels."""
         
     def __init__(self, estimator, avgfn, mode="decompose"):
         super(Space, self).__init__(estimator, mode)
@@ -667,7 +589,7 @@ class Space(Decompose):
         
 
 class AverageTimecourse(Decompose):
-    """Average timecourse and decompose that."""
+    """Average X timecourse and decompose that."""
 
     def __init__(self, estimator, mode="decompose"):
         super(AverageTimecourse, self).__init__(estimator, mode)
