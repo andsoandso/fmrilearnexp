@@ -8,9 +8,6 @@ import argparse
 
 # from fmrilearn.analysis import fir
 from fmrilearn.load import load_roifile
-from sklearn.decomposition import FastICA
-from fmrilearnexp.base import Timecourse
-from fmrilearnexp.base import DecomposeExp
 from wheelerdata.load.meta import get_data
 
 parser = argparse.ArgumentParser(
