@@ -305,7 +305,8 @@ class DecomposeExp(object):
             #targets_to_csv(targets, "{0}_targets_before.csv".format(basename))
             if filtfile is not None:
                 targets = reprocess_targets(filtfile, targets, np.nan)
-                assert targets["TR"].shape[0] == X.shape[0], "target reprocessing is broken"
+                assert targets["TR"].shape[0] == X.shape[0], ("target" 
+                    "reprocessing is broken")
             #targets_to_csv(targets, "{0}_targets_after.csv".format(basename))
             
             # Normalize
@@ -430,6 +431,33 @@ class Decompose(object):
 
     def fit_transform(self, X, y, trial_index, window):
         raise NotImplementedError("Subclass `Decompose` then implement this")
+
+
+class Timecourse(object):
+    """Decompose full voxel timecourses, return the reduced."""
+     
+    def __init__(self, estimator, mode):        
+        self.mode = mode
+        self.estimator = estimator
+        
+    def fit_transform(self, X, y, trial_index, window, tr):
+        if self.mode == 'decompose': 
+            Xc = self.estimator.fit_transform(X)
+        elif self.mode == 'cluster':
+            # Use cluster labels to create average timecourses
+            clabels = self.estimator.fit_predict(X.transpose())
+            uclabels = unique_nan(clabels)
+            uclabels = sort_nanfirst(uclabels)         
+
+            Xc = np.zeros((X.shape[0], len(uclabels))) ## Init
+            for i, ucl in enumerate(uclabels):
+                Xc[:,i] = X[:,ucl == clabels].mean(1)
+        else:
+            raise ValueError("mode not understood.")
+
+        checkX(Xc)
+        
+        return [Xc, ], [y, ]
 
 
 class Trialtime(Decompose):
@@ -714,7 +742,7 @@ class Space(Decompose):
         else:
             raise ValueError("mode not understood.")
 
-        return Xcs, unique_fn      
+        return Xcs, unique_fn
         
 
 class AverageTime(object):
