@@ -6,6 +6,12 @@ import sys, os
 import numpy as np
 import argparse
 
+from fmrilearn.load import load_roifile
+from sklearn.decomposition import FastICA
+from wheelerexp.base import SelectTimecourse
+from wheelerexp.base import DecomposeExp
+from wheelerdata.load.meta import get_data
+
 # from fmrilearn.analysis import fir
 from fmrilearn.load import load_roifile
 from wheelerdata.load.meta import get_data
@@ -60,7 +66,7 @@ _, rois = load_roifile(args.roifile)  ## roifile
 # ---------------------------------------------------------------------------
 # Setup exp
 # ---------------------------------------------------------------------------
-spacetime = Timecourse(FastICA(10, max_iter=500), mode="decompose")
+spacetime = SelectTimecourse(FastICA(6, max_iter=500), mode="decompose")
 exp = DecomposeExp(
         spacetime, data, window=args.window, nsig=3, tr=args.tr
         )

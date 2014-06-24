@@ -4,7 +4,8 @@ import pandas as pd
 import numpy as np
 
 from sklearn.preprocessing import MinMaxScaler
-
+from sklearn import feature_selection as fs
+        
 from simfMRI.noise import white
 
 from fmrilearn.load import load_meta
@@ -26,6 +27,7 @@ from fmrilearn.preprocess.labels import csv_to_targets
 from fmrilearn.preprocess.labels import targets_to_csv
 from fmrilearn.preprocess.labels import tr_pad_targets
 from fmrilearn.preprocess.labels import reprocess_targets
+from fmrilearn.preprocess.labels import create_y
 
 from wheelerdata.load.fh import FH
 from wheelerdata.load.simulated import make_bold
@@ -150,7 +152,7 @@ class DecomposeExpReproduction(object):
             norm = MinMaxScaler((0,1))
             X = norm.fit_transform(X.astype(np.float))
             
-            Xcs, csnames = self.spacetime.fit_transform(
+            Xcs, csnames, ti_cs = self.spacetime.fit_transform(
                     X, y, yindex, self.window, self.tr)
 
             # Name them,
@@ -158,14 +160,14 @@ class DecomposeExpReproduction(object):
             csnames = sort_nanfirst(csnames)
 
             # and write.
-            for Xc, csname in zip(Xcs, csnames):
+            for Xc, csname, ti in zip(Xcs, csnames, ti_cs):
                 save_tcdf(
                         name=join_by_underscore(True, basename, csname), 
                         X=Xc, 
                         cond=csname,
                         dataname=join_by_underscore(False, 
                                 os.path.split(basename)[-1], scode),
-                        index='auto',
+                        index=ti.astype(np.int),
                         header=header, 
                         mode=mode,
                         float_format="%.{0}f".format(self.nsig))
@@ -235,7 +237,7 @@ class DecomposeSimulation(object):
             X = norm.fit_transform(X.astype(np.float))
             
             # finally decompose.
-            Xcs, csnames = self.spacetime.fit_transform(
+            Xcs, csnames, ti_cs = self.spacetime.fit_transform(
                     X, targets["y"], targets["trial_index"], 
                     self.window)
             
@@ -244,14 +246,14 @@ class DecomposeSimulation(object):
             csnames = sort_nanfirst(csnames)
 
             # and write.
-            for Xc, csname in zip(Xcs, csnames):
+            for Xc, csname, ti in zip(Xcs, csnames, ti_cs):
                 save_tcdf(
                         name=join_by_underscore(True, basename, csname), 
                         X=Xc, 
                         cond=csname,
                         dataname=join_by_underscore(False, 
                                 os.path.split(basename)[-1], scode),
-                        index='auto',
+                        index=ti.astype(np.int),
                         header=header, 
                         mode=mode,
                         float_format="%.{0}f".format(self.nsig))
@@ -295,45 +297,37 @@ class DecomposeExp(object):
                 mode = 'a'
                 header = False
 
-            # Get all metadata
+            # Get data
             targets = csv_to_targets(meta)
 
-            # and data, preprocess too,
             X = load_nii(path, clean=True, sparse=False, smooth=smooth)
             targets = tr_pad_targets(targets, "TR", X.shape[0], pad=np.nan)
 
-            #targets_to_csv(targets, "{0}_targets_before.csv".format(basename))
+            # Preprocess labels
             if filtfile is not None:
                 targets = reprocess_targets(filtfile, targets, np.nan)
                 assert targets["TR"].shape[0] == X.shape[0], ("target" 
                     "reprocessing is broken")
-            #targets_to_csv(targets, "{0}_targets_after.csv".format(basename))
             
-            # Normalize
+            
             norm = MinMaxScaler((0,1))
             X = norm.fit_transform(X.astype(np.float))
             
-            Xcs, csnames = self.spacetime.fit_transform(
+            Xcs, csnames, ti_cs = self.spacetime.fit_transform(
                     X, targets[cond], targets["trialcount"], 
                     self.window, self.tr)
 
-            # Try to count components for the dataname
-            try:
-                dataname = join_by_underscore(False, roiname, 
-                        self.spacetime.estimator.n_components)
-            except AttributeError:
-                dataname = join_by_underscore(False, roiname)
-
             # and write.
+            dataname = join_by_underscore(False, roiname)
             known = []
-            for Xc, csname in zip(Xcs, csnames):
+            for Xc, csname, ti in zip(Xcs, csnames, ti_cs):
                 if not csname in known:
                     save_tcdf(
                             name=join_by_underscore(True, table, csname), 
                             X=Xc, 
                             cond=csname,
                             dataname=dataname,
-                            index='auto',
+                            index=ti.astype(np.int),
                             header=header, 
                             mode=mode,
                             float_format="%.{0}f".format(self.nsig))
@@ -344,7 +338,7 @@ class DecomposeExp(object):
                             X=Xc, 
                             cond=csname,
                             dataname=dataname,
-                            index='auto',
+                            index=ti.astype(np.int),
                             header=False, 
                             mode='a',
                             float_format="%.{0}f".format(self.nsig))
@@ -441,24 +435,18 @@ class Timecourse(object):
         self.estimator = estimator
         
     def fit_transform(self, X, y, trial_index, window, tr):
-        if self.mode == 'decompose': 
-            Xc = self.estimator.fit_transform(X)
+        if self.mode == 'decompose':
+            Xc = self._ft(X)
         elif self.mode == 'cluster':
-            # Use cluster labels to create average timecourses
-            clabels = self.estimator.fit_predict(X.transpose())
-            uclabels = unique_nan(clabels)
-            uclabels = sort_nanfirst(uclabels)         
-
-            Xc = np.zeros((X.shape[0], len(uclabels))) ## Init
-            for i, ucl in enumerate(uclabels):
-                Xc[:,i] = X[:,ucl == clabels].mean(1)
+            Xc = self._fp(X.transpose())
         else:
             raise ValueError("mode not understood.")
-
+            
         unique_y = sort_nanfirst(unique_nan(y))        
-        Xcs = [Xc[uy == unique_y,:] for uy in unique_y]        
-        
-        return Xcs, unique_y
+        Xcs = [Xc[y == uy,:] for uy in unique_y]        
+        ti_cs = [trial_index[y == uy] for uy in unique_y]        
+
+        return Xcs, unique_y, ti_cs
 
 
 class Trialtime(Decompose):
@@ -520,10 +508,11 @@ class Trialtime(Decompose):
                 Xcs.append(Xc)
             
             ycs.append(y[trial_index == ti][0])
-        
+            ti_cs.append(trial_index[trial_index == ti])
+            
         assert len(Xcs) == len(ycs), ("Xcs and ycs mismatch")
         
-        return Xcs, np.asarray(ycs) 
+        return Xcs, np.asarray(ycs), ti_cs 
         
 
 class Space(Decompose):
@@ -585,16 +574,110 @@ class Space(Decompose):
         else:
             raise ValueError("mode not understood.")
 
-        return Xcs, unique_fn
+        ti_cs = [np.arange(xc.shape[0]) for xc in Xcs]
+            ## In this case, Xcs[i] is only 1 trial long.
         
+        return Xcs, unique_fn, ti_cs
+        
+
+class SelectSpace(Decompose):
+    """Select voxels (ANOVA) and calculate average timecourses."""
+
+    def __init__(self, estimator, avgfn, mode="decompose"):
+        super(SelectSpace, self).__init__(estimator, mode)
+        
+        self.avgfn = avgfn
+    
+    
+    def fit_transform(self, X, y, trial_index, window, tr):
+        """Converts X into time-avearage trials and decomposes  that
+        matrix, possibly several times depending on y.
+
+        Parameters
+        ----------
+        X : 2D array-like (n_sample, n_feature)
+            The data to decompose
+
+        y : 1D array, None by default
+            Sample labels for the data
+
+        trial_index : 1D array (n_sample, )
+            Each unique entry should match a trial.
+
+        window : int 
+            Trial length
+
+        norm : True
+            A dummy argument
+
+        Return
+        ------
+        Xcs : a list of 2D arrays (n_sample, n_components)
+            The components for each unique y.
+
+        csnames : 1D array
+            The names of the components matrices
+        """
+
+        selector = fs.SelectPercentile(percentile=20)
+        Xsel = selector.fit_transform(X, create_y(y))
+        
+        Xtrials = []
+        Xcs = []
+        csnames = []
+    
+        Xtrial, feature_names = self.avgfn(Xsel, y, trial_index, window, tr)
+        unique_fn = sort_nanfirst(unique_nan(feature_names))
+
+        # Split up by feature_names
+        for yi in unique_fn:
+            Xtrials.append(Xtrial[:, feature_names == yi])
+            
+        # and decompose.
+        if self.mode == 'decompose':
+            Xcs = [self._ft(Xt) for Xt in Xtrials]
+        elif self.mode == 'cluster':
+            Xcs = [self._fp(Xt) for Xt in Xtrials]
+        else:
+            raise ValueError("mode not understood.")
+
+        ti_cs = [np.arange(xc.shape[0]) for xc in Xcs]
+            ## In this case, Xcs[i] is only 1 trial long.
+    
+        return Xcs, unique_fn, ti_cs
+    
+        
+        
+class SelectTimecourse(Decompose):
+    """Select timecourses decompose those."""
+    def __init__(self, estimator, mode="decompose"):
+        super(SelectTimecourse, self).__init__(estimator, mode)
+    
+    def fit_transform(self, X, y, trial_index, window, tr):        
+        selector = fs.SelectPercentile(percentile=25)
+        Xsel = selector.fit_transform(X, create_y(y))
+        
+        import ipdb; ipdb.set_trace()
+        
+        if self.mode == 'decompose':
+            Xc = self._ft(Xsel)
+        elif self.mode == 'cluster':
+            Xc = self._fp(Xsel)
+        else:
+            raise ValueError("mode not understood.")
+        
+        unique_y = sort_nanfirst(unique_nan(y))        
+        Xcs = [Xc[y == uy,:] for uy in unique_y]
+        ti_cs = [trial_index[y == uy] for uy in unique_y]
+        
+        return Xcs, unique_y, ti_cs
+    
 
 class AverageTimecourse(Decompose):
     """Average X timecourse and decompose that."""
 
     def __init__(self, estimator, mode="decompose"):
         super(AverageTimecourse, self).__init__(estimator, mode)
-
-        self.avgfn = avgfn
 
 
     def fit_transform(self, X, y, trial_index, window, tr):
@@ -631,6 +714,7 @@ class AverageTimecourse(Decompose):
             raise ValueError("mode not understood.")
         
         unique_y = sort_nanfirst(unique_nan(y))        
-        Xcs = [Xc[uy == unique_y,:] for uy in unique_y]
+        Xcs = [Xc[y == uy,:] for uy in unique_y]
+        ti_cs = [trial_index[y == uy] for uy in unique_y]
 
-        return Xcs, unique_y
+        return Xcs, unique_y, ti_cs

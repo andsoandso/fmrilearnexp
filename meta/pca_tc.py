@@ -6,15 +6,18 @@ import sys, os
 import numpy as np
 import argparse
 
-# from fmrilearn.analysis import fir
 from fmrilearn.load import load_roifile
-from sklearn.cluster import KMeans
-from wheelerexp.base import Timecourse
+from sklearn.decomposition import PCA
+from wheelerexp.base import SelectTimecourse
 from wheelerexp.base import DecomposeExp
 from wheelerdata.load.meta import get_data
 
+# from fmrilearn.analysis import fir
+from fmrilearn.load import load_roifile
+from wheelerdata.load.meta import get_data
+
 parser = argparse.ArgumentParser(
-        description="TODO",
+        description="Apply PCA to trial-level data",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
         )
 parser.add_argument(
@@ -63,7 +66,7 @@ _, rois = load_roifile(args.roifile)  ## roifile
 # ---------------------------------------------------------------------------
 # Setup exp
 # ---------------------------------------------------------------------------
-spacetime = Timecourse(KMeans(4), mode="cluster")
+spacetime = SelectTimecourse(PCA(6, whiten=True), mode="decompose")
 exp = DecomposeExp(
         spacetime, data, window=args.window, nsig=3, tr=args.tr
         )

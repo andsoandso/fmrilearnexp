@@ -1,20 +1,23 @@
 """
-usage: python ./kmeans_tc.py name data roifile cond tr window [, filtfile]
+usage: python ./pca_selspace.py name data roifile cond tr window [, filtfile]
 """
 
 import sys, os
 import numpy as np
 import argparse
 
-# from fmrilearn.analysis import fir
+from sklearn.decomposition import PCA
+
+from fmrilearn.analysis import fir
 from fmrilearn.load import load_roifile
-from sklearn.cluster import KMeans
-from wheelerexp.base import Timecourse
+
+from wheelerexp.base import SelectSpace
 from wheelerexp.base import DecomposeExp
+from wheelerdata.load.meta import get_data
 from wheelerdata.load.meta import get_data
 
 parser = argparse.ArgumentParser(
-        description="TODO",
+        description="Apply PCA to trial-level data",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
         )
 parser.add_argument(
@@ -63,7 +66,7 @@ _, rois = load_roifile(args.roifile)  ## roifile
 # ---------------------------------------------------------------------------
 # Setup exp
 # ---------------------------------------------------------------------------
-spacetime = Timecourse(KMeans(4), mode="cluster")
+spacetime = SelectSpace(PCA(6, whiten=True), fir, mode="decompose")
 exp = DecomposeExp(
         spacetime, data, window=args.window, nsig=3, tr=args.tr
         )
@@ -75,6 +78,6 @@ for n, roi in enumerate(rois):
     print("{3}: {0} ({1}/{2})".format(roi, n+1, len(rois), args.data))   
     exp.run(
             args.name, roi, args.cond, smooth=False, 
-            filtfile=args.filtfile, event=False
+            filtfile=args.filtfile, event=True
             )
 
