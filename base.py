@@ -1,11 +1,12 @@
-import sys, os
+import sys
+import os
 
 import pandas as pd
 import numpy as np
 
 from sklearn.preprocessing import MinMaxScaler
 from sklearn import feature_selection as fs
-        
+
 from simfMRI.noise import white
 
 from fmrilearn.load import load_meta
@@ -38,6 +39,7 @@ from wheelerexp.common import join_by_underscore
 
 
 class DecomposeExpReproduction(object):
+
     def __init__(self, spacetime, data, window=11, nsig=3, tr=1.5):
         super(DecomposeExpReproduction, self).__init__()
 
@@ -46,21 +48,21 @@ class DecomposeExpReproduction(object):
         self.window = window
         self.nsig = nsig
         self.tr = tr
-        
-    def run(self, basename, cond, index, wheelerdata, cond_to_rt, 
-        smooth=False,
-        filtfile=None, TR=2, trname="TR", 
-        n_features=10, n_univariate=None, n_accumulator=None, n_decision=None, 
-        n_noise=None, drift_noise=False, step_noise=False, z_noise=False,
-        drift_noise_param=None, step_noise_param=None, z_noise_param=None,
-        noise_f=white, hrf_f=None, hrf_params=None, prng=None):       
+
+    def run(self, basename, cond, index, wheelerdata, cond_to_rt,
+            smooth=False,
+            filtfile=None, TR=2, trname="TR",
+            n_features=10, n_univariate=None, n_accumulator=None, n_decision=None,
+            n_noise=None, drift_noise=False, step_noise=False, z_noise=False,
+            drift_noise_param=None, step_noise_param=None, z_noise_param=None,
+            noise_f=white, hrf_f=None, hrf_params=None, prng=None):
         """Reproduce the cond from the wheelerdata experiment
-        
+
         Parameters
         ---------
         basename : str
             The name for the Reproduced datafile, will be suffixed
-            by each cond and scode and .csv 
+            by each cond and scode and .csv
             (i.e. `'{0}_{1}_{2}.csv'.format(basename, cond, scode)`).
         cond : str
             A condition name found in the wheelerdata objects metadata
@@ -69,7 +71,7 @@ class DecomposeExpReproduction(object):
         wheelerdata : object, instance of Wheelerdata
             A Wheelerdata object
         cond_to_rt: dict
-            A map of cond (key) to reaction time (item, (int, float))    
+            A map of cond (key) to reaction time (item, (int, float))
         smooth : boolean, optional
             Do bandpass filtering (default False)
         filtfile : str, None
@@ -97,10 +99,10 @@ class DecomposeExpReproduction(object):
             Add noise to the start value of accumulator features
         drift_noise_param : None or dict, optional
             Parameters for drift_noise which is drawn from a
-            Gaussian distribution. None defaults to: 
+            Gaussian distribution. None defaults to:
             `{"loc": 0, "scale" : 0.5}`
         step_noise_param : None or dict, optional
-            Parameters for step_noise which is drawn from a 
+            Parameters for step_noise which is drawn from a
             Gaussian distribution. None defaults to:
             `{"loc" : 0, "scale" : 0.2, "size" : 1}`
         z_noise_param : None or dict, optional
@@ -114,7 +116,7 @@ class DecomposeExpReproduction(object):
         hrf_params : dict
             Keyword parameters for hrf_f
         prng : None or RandomState object
-            Allows for independent random draws, used for all 
+            Allows for independent random draws, used for all
             random sampling
         """
 
@@ -124,36 +126,36 @@ class DecomposeExpReproduction(object):
         # All *s lists correspond to wheelerdata.scodes
         scodes = self.data.scodes
         Xs, ys, yindices = make_bold_re(
-                cond, index, self.data,
-                cond_to_rt,
-                filtfile=filtfile, 
-                trname=trname,
-                noise_f=noise_f, 
-                hrf_f=hrf_f, 
-                hrf_params=hrf_params, 
-                n_features=n_features, 
-                n_univariate=n_univariate, 
-                n_accumulator=n_accumulator, 
-                n_decision=n_decision, 
-                n_noise=n_noise, 
-                drift_noise=drift_noise, 
-                step_noise=step_noise, 
-                z_noise=z_noise,
-                drift_noise_param=drift_noise_param, 
-                step_noise_param=step_noise_param, 
-                z_noise_param=z_noise_param,
-                prng=prng)
-        
+            cond, index, self.data,
+            cond_to_rt,
+            filtfile=filtfile,
+            trname=trname,
+            noise_f=noise_f,
+            hrf_f=hrf_f,
+            hrf_params=hrf_params,
+            n_features=n_features,
+            n_univariate=n_univariate,
+            n_accumulator=n_accumulator,
+            n_decision=n_decision,
+            n_noise=n_noise,
+            drift_noise=drift_noise,
+            step_noise=step_noise,
+            z_noise=z_noise,
+            drift_noise_param=drift_noise_param,
+            step_noise_param=step_noise_param,
+            z_noise_param=z_noise_param,
+            prng=prng)
+
         for scode, X, y, yindex in zip(scodes, Xs, ys, yindices):
             if smooth:
                 X = smoothfn(X, tr=1.5, ub=0.10, lb=0.001)
-            
+
             # Normalize
-            norm = MinMaxScaler((0,1))
+            norm = MinMaxScaler((0, 1))
             X = norm.fit_transform(X.astype(np.float))
-            
+
             Xcs, csnames, ti_cs = self.spacetime.fit_transform(
-                    X, y, yindex, self.window, self.tr)
+                X, y, yindex, self.window, self.tr)
 
             # Name them,
             csnames = unique_nan(y)
@@ -162,37 +164,38 @@ class DecomposeExpReproduction(object):
             # and write.
             for Xc, csname, ti in zip(Xcs, csnames, ti_cs):
                 save_tcdf(
-                        name=join_by_underscore(True, basename, csname), 
-                        X=Xc, 
-                        cond=csname,
-                        dataname=join_by_underscore(False, 
-                                os.path.split(basename)[-1], scode),
-                        index=ti.astype(np.int),
-                        header=header, 
-                        mode=mode,
-                        float_format="%.{0}f".format(self.nsig))
-            
+                    name=join_by_underscore(True, basename, csname),
+                    X=Xc,
+                    cond=csname,
+                    dataname=join_by_underscore(False,
+                                                os.path.split(basename)[-1], scode),
+                    index=ti.astype(np.int),
+                    header=header,
+                    mode=mode,
+                    float_format="%.{0}f".format(self.nsig))
+
             # After s 1 go to append mode
             mode = 'a'
             header = False
 
 
 class DecomposeSimulation(object):
+
     """A Monte Carlo simulation of the facehouse decomposition experiment"""
+
     def __init__(self, spacetime, window=11, nsig=3):
         super(DecomposeSimulation, self).__init__()
-        
+
         self.spacetime = spacetime
         self.window = window
         self.nsig = nsig
 
+    def run(self, basename, smooth=False, filtfile=None,
+            n=None, tr=None, n_rt=None, n_trials_per_cond=None,
+            durations=None, noise=None, n_features=None, n_univariate=None,
+            n_accumulator=None, n_decision=None, n_noise=None,
+            n_repeated=None, drift_noise=False, step_noise=False):
 
-    def run(self, basename, smooth=False, filtfile=None, 
-        n=None, tr=None, n_rt=None, n_trials_per_cond=None,
-        durations=None ,noise=None, n_features=None, n_univariate=None, 
-        n_accumulator=None, n_decision=None, n_noise=None, 
-        n_repeated=None, drift_noise=False, step_noise=False):
-        
         # Write init
         mode = 'w'
         header = True
@@ -205,19 +208,19 @@ class DecomposeSimulation(object):
 
             # Create the data
             X, y, y_trialcount = make_bold(
-                    n_rt, 
-                    n_trials_per_cond, 
-                    tr, 
-                    durations=durations, 
-                    noise=noise, 
-                    n_features=n_features, 
-                    n_univariate=n_univariate, 
-                    n_accumulator=n_accumulator, 
-                    n_decision=n_decision,
-                    n_noise=n_noise,
-                    n_repeated=n_repeated,
-                    drift_noise=drift_noise,
-                    step_noise=step_noise)
+                n_rt,
+                n_trials_per_cond,
+                tr,
+                durations=durations,
+                noise=noise,
+                n_features=n_features,
+                n_univariate=n_univariate,
+                n_accumulator=n_accumulator,
+                n_decision=n_decision,
+                n_noise=n_noise,
+                n_repeated=n_repeated,
+                drift_noise=drift_noise,
+                step_noise=step_noise)
 
             targets = construct_targets(trial_index=y_trialcount, y=y)
 
@@ -231,16 +234,16 @@ class DecomposeSimulation(object):
                 X, targets = filterX(filtfile, X, targets)
             if smooth:
                 X = smoothfn(X, tr=1.5, ub=0.10, lb=0.001)
-            
+
             # Normalize
-            norm = MinMaxScaler((0,1))
+            norm = MinMaxScaler((0, 1))
             X = norm.fit_transform(X.astype(np.float))
-            
+
             # finally decompose.
             Xcs, csnames, ti_cs = self.spacetime.fit_transform(
-                    X, targets["y"], targets["trial_index"], 
-                    self.window)
-            
+                X, targets["y"], targets["trial_index"],
+                self.window)
+
             # Name them,
             csnames = unique_nan(y)
             csnames = sort_nanfirst(csnames)
@@ -248,28 +251,29 @@ class DecomposeSimulation(object):
             # and write.
             for Xc, csname, ti in zip(Xcs, csnames, ti_cs):
                 save_tcdf(
-                        name=join_by_underscore(True, basename, csname), 
-                        X=Xc, 
-                        cond=csname,
-                        dataname=join_by_underscore(False, 
-                                os.path.split(basename)[-1], scode),
-                        index=ti.astype(np.int),
-                        header=header, 
-                        mode=mode,
-                        float_format="%.{0}f".format(self.nsig))
+                    name=join_by_underscore(True, basename, csname),
+                    X=Xc,
+                    cond=csname,
+                    dataname=join_by_underscore(False,
+                                                os.path.split(basename)[-1], scode),
+                    index=ti.astype(np.int),
+                    header=header,
+                    mode=mode,
+                    float_format="%.{0}f".format(self.nsig))
 
 
 class DecomposeExp(object):
+
     """A decomposition experiment."""
+
     def __init__(self, spacetime, data, window=11, nsig=3, tr=1.5):
         super(DecomposeExp, self).__init__()
-        
+
         self.spacetime = spacetime
         self.window = window
         self.nsig = nsig
         self.tr = tr
         self.data = data
-
 
     def run(self, basename, roi, cond, smooth=False, filtfile=None, event=False):
         # Save here....
@@ -290,7 +294,7 @@ class DecomposeExp(object):
         # And decompose it
         for path, meta in zip(paths, metas):
             roiname = get_roiname(path)
-            print("\t{0}".format(roiname))  ## ...progress
+            print("\t{0}".format(roiname))  # ...progress
 
             # If were past the first Ss data, append.
             if roicount > 0:
@@ -306,16 +310,15 @@ class DecomposeExp(object):
             # Preprocess labels
             if filtfile is not None:
                 targets = reprocess_targets(filtfile, targets, np.nan)
-                assert targets["TR"].shape[0] == X.shape[0], ("target" 
-                    "reprocessing is broken")
-            
-            
-            norm = MinMaxScaler((0,1))
+                assert targets["TR"].shape[0] == X.shape[0], ("target"
+                                                              "reprocessing is broken")
+
+            norm = MinMaxScaler((0, 1))
             X = norm.fit_transform(X.astype(np.float))
-            
+
             Xcs, csnames, ti_cs = self.spacetime.fit_transform(
-                    X, targets[cond], targets["trialcount"], 
-                    self.window, self.tr)
+                X, targets[cond], targets["trialcount"],
+                self.window, self.tr)
 
             # and write.
             dataname = join_by_underscore(False, roiname)
@@ -323,29 +326,30 @@ class DecomposeExp(object):
             for Xc, csname, ti in zip(Xcs, csnames, ti_cs):
                 if not csname in known:
                     save_tcdf(
-                            name=join_by_underscore(True, table, csname), 
-                            X=Xc, 
-                            cond=csname,
-                            dataname=dataname,
-                            index=ti.astype(np.int),
-                            header=header, 
-                            mode=mode,
-                            float_format="%.{0}f".format(self.nsig))
+                        name=join_by_underscore(True, table, csname),
+                        X=Xc,
+                        cond=csname,
+                        dataname=dataname,
+                        index=ti.astype(np.int),
+                        header=header,
+                        mode=mode,
+                        float_format="%.{0}f".format(self.nsig))
                     known.append(csname)
                 else:
                     save_tcdf(
-                            name=join_by_underscore(True, table, csname), 
-                            X=Xc, 
-                            cond=csname,
-                            dataname=dataname,
-                            index=ti.astype(np.int),
-                            header=False, 
-                            mode='a',
-                            float_format="%.{0}f".format(self.nsig))
+                        name=join_by_underscore(True, table, csname),
+                        X=Xc,
+                        cond=csname,
+                        dataname=dataname,
+                        index=ti.astype(np.int),
+                        header=False,
+                        mode='a',
+                        float_format="%.{0}f".format(self.nsig))
             roicount += 1
-        
-        
+
+
 class Decompose(object):
+
     """A template for decomposition objects.
 
     The only public method should be `fit_transform` which
@@ -359,7 +363,6 @@ class Decompose(object):
 
         self.mode = mode
         self.estimator = estimator
-    
 
     def _fp(self, X):
         """The cluster workhorse
@@ -383,17 +386,16 @@ class Decompose(object):
         # uclabels = unique_sorted_with_nan(uclabels)
 
         # Average cluster examples, filling Xc
-        Xc = np.zeros((nrow, len(uclabels)))         ## Init w/ 0
+        Xc = np.zeros((nrow, len(uclabels)))  # Init w/ 0
         for i, ucl in enumerate(uclabels):
-            Xc[:,i] = X[:,ucl == clabels].mean(1)
+            Xc[:, i] = X[:, ucl == clabels].mean(1)
 
         assert checkX(Xc)
         assert Xc.shape[0] == X.shape[0], ("After transform wrong row number")
-        assert Xc.shape[1] == len(uclabels), ("Afer transform" 
-            " wrong col number")
+        assert Xc.shape[1] == len(uclabels), ("Afer transform"
+                                              " wrong col number")
 
         return Xc
-
 
     def _ft(self, X):
         """The decompose workhorse
@@ -406,34 +408,34 @@ class Decompose(object):
         Return
         ------
         Xc - 2D array-like (n_sample, n_components)
-        """ 
-        
+        """
+
         Xc = self.estimator.fit_transform(X)
 
         assert checkX(Xc)
         assert Xc.shape[0] == X.shape[0], ("After transform wrong row number")
 
         # The n_components attr is optional
-        try: 
-            assert Xc.shape[1] <= self.estimator.n_components, ("Too many" 
-                "components")
+        try:
+            assert Xc.shape[1] <= self.estimator.n_components, ("Too many"
+                                                                "components")
         except AttributeError:
             pass
 
         return Xc
-
 
     def fit_transform(self, X, y, trial_index, window):
         raise NotImplementedError("Subclass `Decompose` and implement")
 
 
 class Timecourse(object):
+
     """Decompose full voxel timecourses."""
-     
-    def __init__(self, estimator, mode):        
+
+    def __init__(self, estimator, mode):
         self.mode = mode
         self.estimator = estimator
-        
+
     def fit_transform(self, X, y, trial_index, window, tr):
         if self.mode == 'decompose':
             Xc = self._ft(X)
@@ -441,32 +443,33 @@ class Timecourse(object):
             Xc = self._fp(X.transpose())
         else:
             raise ValueError("mode not understood.")
-            
-        unique_y = sort_nanfirst(unique_nan(y))        
-        Xcs = [Xc[y == uy,:] for uy in unique_y]        
-        ti_cs = [trial_index[y == uy] for uy in unique_y]        
+
+        unique_y = sort_nanfirst(unique_nan(y))
+        Xcs = [Xc[y == uy, :] for uy in unique_y]
+        ti_cs = [trial_index[y == uy] for uy in unique_y]
 
         return Xcs, unique_y, ti_cs
 
 
 class Trialtime(Decompose):
+
     """Decompose each trial across voxels."""
-    
+
     def __init__(self, estimator, mode='decompose'):
-        super(Trialtime, self).__init__(estimator, mode)        
-    
+        super(Trialtime, self).__init__(estimator, mode)
+
     def fit_transform(self, X, y, trial_index, window, tr):
         Xcs = []
         ycs = []
         uti = unique_nan(trial_index)
         uti = uti[np.logical_not(np.isnan(uti))]
-        
+
         for n, ti in enumerate(uti):
             # Skip last trial to prevent padding overflow
-            if n+1 == len(uti):
+            if n + 1 == len(uti):
                 break
-            
-            # Locate trial and either 
+
+            # Locate trial and either
             # extend l to window, if needed
             # or shorten each trial to window, if needed
             mask = trial_index == ti
@@ -486,14 +489,14 @@ class Trialtime(Decompose):
                     if ma:
                         i += 1
                     if i > window:
-                       mask[j] = False 
-                        
-            Xtrial = X[mask,:]
+                        mask[j] = False
+
+            Xtrial = X[mask, :]
             from simfMRI.norm import zscore
             Xtrial = zscore(Xtrial)
-            
+
             assert Xtrial.shape == (window, X.shape[1]), "Xtrial wrong shape"
-            
+
             if self.mode == 'decompose':
                 Xcs.append(self.estimator.fit_transform(Xtrial))
             elif self.mode == 'cluster':
@@ -501,29 +504,29 @@ class Trialtime(Decompose):
                 clabels = self.estimator.fit_predict(Xtrial.transpose())
                 uclabels = unique_nan(clabels)
                 uclabels = sort_nanfirst(uclabels)
-                
-                Xc = np.zeros((Xtrial.shape[0], len(uclabels))) ## Init w/ 0
+
+                Xc = np.zeros((Xtrial.shape[0], len(uclabels)))  # Init w/ 0
                 for i, ucl in enumerate(uclabels):
-                    Xc[:,i] = Xtrial[:,ucl == clabels].mean(1)
+                    Xc[:, i] = Xtrial[:, ucl == clabels].mean(1)
                 Xcs.append(Xc)
-            
+
             ycs.append(y[trial_index == ti][0])
             ti_cs.append(trial_index[trial_index == ti])
-            
+
         assert len(Xcs) == len(ycs), ("Xcs and ycs mismatch")
-        
-        return Xcs, np.asarray(ycs), ti_cs 
-        
+
+        return Xcs, np.asarray(ycs), ti_cs
+
 
 class Space(Decompose):
+
     """Calculate average trials by cond for each voxel, and reduce
     across voxels."""
-        
+
     def __init__(self, estimator, avgfn, mode="decompose"):
         super(Space, self).__init__(estimator, mode)
 
         self.avgfn = avgfn
-
 
     def fit_transform(self, X, y, trial_index, window, tr):
         """Converts X into time-avearage trials and decomposes  that
@@ -540,7 +543,7 @@ class Space(Decompose):
         trial_index : 1D array (n_sample, )
             Each unique entry should match a trial.
 
-        window : int 
+        window : int
             Trial length
 
         norm : True
@@ -558,14 +561,14 @@ class Space(Decompose):
         Xtrials = []
         Xcs = []
         csnames = []
-        
+
         Xtrial, feature_names = self.avgfn(X, y, trial_index, window, tr)
         unique_fn = sort_nanfirst(unique_nan(feature_names))
 
         # Split up by feature_names
         for yi in unique_fn:
             Xtrials.append(Xtrial[:, feature_names == yi])
-                
+
         # and decompose.
         if self.mode == 'decompose':
             Xcs = [self._ft(Xt) for Xt in Xtrials]
@@ -575,20 +578,20 @@ class Space(Decompose):
             raise ValueError("mode not understood.")
 
         ti_cs = [np.arange(xc.shape[0]) for xc in Xcs]
-            ## In this case, Xcs[i] is only 1 trial long.
-        
+        # In this case, Xcs[i] is only 1 trial long.
+
         return Xcs, unique_fn, ti_cs
-        
+
 
 class SelectSpace(Decompose):
+
     """Select voxels (ANOVA) and calculate average timecourses."""
 
     def __init__(self, estimator, avgfn, mode="decompose"):
         super(SelectSpace, self).__init__(estimator, mode)
-        
+
         self.avgfn = avgfn
-    
-    
+
     def fit_transform(self, X, y, trial_index, window, tr):
         """Converts X into time-avearage trials and decomposes  that
         matrix, possibly several times depending on y.
@@ -604,7 +607,7 @@ class SelectSpace(Decompose):
         trial_index : 1D array (n_sample, )
             Each unique entry should match a trial.
 
-        window : int 
+        window : int
             Trial length
 
         norm : True
@@ -621,18 +624,18 @@ class SelectSpace(Decompose):
 
         selector = fs.SelectPercentile(percentile=20)
         Xsel = selector.fit_transform(X, create_y(y))
-        
+
         Xtrials = []
         Xcs = []
         csnames = []
-    
+
         Xtrial, feature_names = self.avgfn(Xsel, y, trial_index, window, tr)
         unique_fn = sort_nanfirst(unique_nan(feature_names))
 
         # Split up by feature_names
         for yi in unique_fn:
             Xtrials.append(Xtrial[:, feature_names == yi])
-            
+
         # and decompose.
         if self.mode == 'decompose':
             Xcs = [self._ft(Xt) for Xt in Xtrials]
@@ -642,43 +645,45 @@ class SelectSpace(Decompose):
             raise ValueError("mode not understood.")
 
         ti_cs = [np.arange(xc.shape[0]) for xc in Xcs]
-            ## In this case, Xcs[i] is only 1 trial long.
-    
+        # In this case, Xcs[i] is only 1 trial long.
+
         return Xcs, unique_fn, ti_cs
-    
-        
-        
+
+
 class SelectTimecourse(Decompose):
+
     """Select timecourses decompose those."""
+
     def __init__(self, estimator, mode="decompose"):
         super(SelectTimecourse, self).__init__(estimator, mode)
-    
-    def fit_transform(self, X, y, trial_index, window, tr):        
+
+    def fit_transform(self, X, y, trial_index, window, tr):
         selector = fs.SelectPercentile(percentile=25)
         Xsel = selector.fit_transform(X, create_y(y))
-        
-        import ipdb; ipdb.set_trace()
-        
+
+        import ipdb
+        ipdb.set_trace()
+
         if self.mode == 'decompose':
             Xc = self._ft(Xsel)
         elif self.mode == 'cluster':
             Xc = self._fp(Xsel)
         else:
             raise ValueError("mode not understood.")
-        
-        unique_y = sort_nanfirst(unique_nan(y))        
-        Xcs = [Xc[y == uy,:] for uy in unique_y]
+
+        unique_y = sort_nanfirst(unique_nan(y))
+        Xcs = [Xc[y == uy, :] for uy in unique_y]
         ti_cs = [trial_index[y == uy] for uy in unique_y]
-        
+
         return Xcs, unique_y, ti_cs
-    
+
 
 class AverageTimecourse(Decompose):
+
     """Average X timecourse and decompose that."""
 
     def __init__(self, estimator, mode="decompose"):
         super(AverageTimecourse, self).__init__(estimator, mode)
-
 
     def fit_transform(self, X, y, trial_index, window, tr):
         """Average X by trial based on y (and trial_index).
@@ -694,7 +699,7 @@ class AverageTimecourse(Decompose):
         trial_index : Dummy
 
         window : Dumy
-        
+
         tr: Dumy
 
         Return
@@ -704,17 +709,17 @@ class AverageTimecourse(Decompose):
         ycs : TODO
         """
 
-        Xa = X.mean(1)[:,np.newaxis]
-        
+        Xa = X.mean(1)[:, np.newaxis]
+
         if self.mode == 'decompose':
             Xc = self._ft(Xa)
         elif self.mode == 'cluster':
             Xc = self._fp(Xa)
         else:
             raise ValueError("mode not understood.")
-        
-        unique_y = sort_nanfirst(unique_nan(y))        
-        Xcs = [Xc[y == uy,:] for uy in unique_y]
+
+        unique_y = sort_nanfirst(unique_nan(y))
+        Xcs = [Xc[y == uy, :] for uy in unique_y]
         ti_cs = [trial_index[y == uy] for uy in unique_y]
 
         return Xcs, unique_y, ti_cs
